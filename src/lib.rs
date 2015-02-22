@@ -10,3 +10,8 @@ extern crate byteorder;
 extern crate "rustc-serialize" as rustc_serialize;
 
 pub mod apns;
+
+pub use apns::APNS;
+pub use apns::Payload;
+pub use apns::PayloadAPS;
+pub use apns::PayloadAPSAlert;
