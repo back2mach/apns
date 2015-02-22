@@ -15,56 +15,85 @@ use std::old_io::net;
 use std::old_io::net::ip::SocketAddr;
 use std::old_io::{TcpStream, MemReader};
 use std::old_path::posix::Path;
+use std::collections::HashMap;
 
 use rand;
 use time;
 
-#[derive(RustcDecodable, Debug)]
-pub struct Payload {
-	pub aps: PayloadAPS,
-	pub source_id: Option<String>,
-	pub message_type: Option<String>,
-	pub target_id: Option<String>,
+#[derive(Debug)]
+pub struct Payload<'a> {
+	pub aps: PayloadAPS<'a>,
+	pub info: Option<HashMap<&'a str, &'a str>>
 }
 
-#[derive(RustcDecodable, RustcEncodable, Debug)]
-pub struct PayloadAPS {
-	pub alert: PayloadAPSAlert,
+#[derive(Debug)]
+pub struct PayloadAPS<'a> {
+	pub alert: PayloadAPSAlert<'a>,
 	pub badge: Option<i32>,
-	pub sound: Option<String>,
+	pub sound: Option<&'a str>,
+	pub content_available: Option<i32>
 }
 
-#[derive(RustcDecodable, Debug)]
-pub struct PayloadAPSAlert {
-	pub localized_key: String,
-	pub localized_args: Vec<String>,
+#[derive(Debug)]
+pub enum PayloadAPSAlert<'a> {
+	Plain(&'a str),
+	Localized(&'a str, Vec<&'a str>)
 }
 
-impl Encodable for Payload {
+impl<'a> Encodable for Payload<'a> {
 	fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
 	    match *self {
-  	      Payload{ref aps, ref source_id, ref message_type, ref target_id} => {
-    	        encoder.emit_struct("Payload", 4, |encoder| {
-    	          try!(encoder.emit_struct_field( "aps", 0usize, |encoder| aps.encode(encoder)));
-    	          try!(encoder.emit_struct_field( "id", 1usize, |encoder| source_id.encode(encoder)));
-    	          try!(encoder.emit_struct_field( "type", 2usize, |encoder| message_type.encode(encoder)));
-    			  try!(encoder.emit_struct_field( "user", 3usize, |encoder| target_id.encode(encoder)));
-    	          Ok(())
+			Payload{ref aps, ref info} => {
+				if let Some(ref map) = *info {
+	    	        encoder.emit_struct("Payload", 1 + map.len(), |encoder| {
+						try!(encoder.emit_struct_field( "aps", 0usize, |encoder| aps.encode(encoder)));
+						let mut index = 1usize;
+						for (key, val) in map.iter() {
+							try!(encoder.emit_struct_field(key, index, |encoder| val.encode(encoder)));
+							index = index + 1;
+						}
+						Ok(())
+	    	        })
+				}
+				else {
+	    	        encoder.emit_struct("Payload", 1, |encoder| {
+						try!(encoder.emit_struct_field( "aps", 0usize, |encoder| aps.encode(encoder)));
+						Ok(())
+	    	        })
+				}
+			}
+		}
+	}
+}
+
+impl<'a> Encodable for PayloadAPS<'a> {
+	fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
+	    match *self {
+			PayloadAPS{ref alert, ref badge, ref sound, ref content_available} => {
+    	        encoder.emit_struct("PayloadAPS", 4, |encoder| {
+					try!(encoder.emit_struct_field( "alert", 0usize, |encoder| alert.encode(encoder)));
+					try!(encoder.emit_struct_field( "badge", 1usize, |encoder| badge.encode(encoder)));
+					try!(encoder.emit_struct_field( "sound", 2usize, |encoder| sound.encode(encoder)));
+					try!(encoder.emit_struct_field( "content-available", 3usize, |encoder| content_available.encode(encoder)));
+					Ok(())
     	        })
 			}
 		}
 	}
 }
 
-impl Encodable for PayloadAPSAlert {
+impl<'a> Encodable for PayloadAPSAlert<'a> {
 	fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
 	    match *self {
-  	      PayloadAPSAlert{ref localized_key, ref localized_args} => {
+			PayloadAPSAlert::Plain(ref str) => {
+    	        encoder.emit_str(str)
+			},
+			PayloadAPSAlert::Localized(ref key, ref args) => {
     	        encoder.emit_struct("PayloadAPSAlert", 2, |encoder| {
-    	          try!(encoder.emit_struct_field( "loc-key", 0usize, |encoder| localized_key.encode(encoder)));
-    	          try!(encoder.emit_struct_field( "loc-args", 1usize, |encoder| localized_args.encode(encoder)));
-    	          Ok(())
-    	        })
+					try!(encoder.emit_struct_field( "loc-key", 0usize, |encoder| key.encode(encoder)));
+					try!(encoder.emit_struct_field( "loc-args", 1usize, |encoder| args.encode(encoder)));
+					Ok(())
+				})
 			}
 		}
 	}
