@@ -1,0 +1,23 @@
+[package]
+
+name = "apns"
+version = "0.0.1"
+authors = ["Mach <back2mach@gmail.com>"]
+description = "Library for Apple Push Notification Service."
+homepage = "https://github.com/back2mach/apns"
+repository = "https://github.com/back2mach/apns"
+readme = "README.md"
+keywords = ["apns", "apple", "push", "notification"]
+license = "Apache 2.0"
+
+[lib]
+
+name = "apns"
+
+[dependencies]
+
+openssl = "*"
+byteorder = "*"
+rustc-serialize = "*"
+time = "*"
+rand = "*"
