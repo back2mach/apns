@@ -9,6 +9,7 @@ use openssl::ssl;
 use openssl::ssl::SslStream;
 use openssl::ssl::error::SslError;
 
+use std::cell::RefCell;
 use std::num::Int;
 use std::ops::{Range, Index};
 use std::old_io::net;
@@ -168,7 +169,7 @@ pub struct APNS {
 	pub certificate: Path,
 	pub private_key: Path,
 	pub ca_certificate: Path,
-	pub ssl_stream: SslStream<TcpStream>
+	pub ssl_stream: RefCell<SslStream<TcpStream>>
 }
 
 impl APNS {
@@ -184,13 +185,13 @@ impl APNS {
 			apns_url_production
 		};
 		
-		let ssl_stream = get_ssl_stream(apns_url, apns_port, &cert_file, &private_key_file, &ca_file).unwrap();	
+		let ssl_stream = RefCell::new(get_ssl_stream(apns_url, apns_port, &cert_file, &private_key_file, &ca_file).unwrap());	
 			
 		APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: ssl_stream}
 	}
 	
 	#[allow(dead_code)]
-    pub fn get_feedback(&mut self) -> Vec<(u32, String)> {    
+    pub fn get_feedback(&self) -> Vec<(u32, String)> {    
 		let apns_feedback_production = "feedback.push.apple.com";
 		let apns_feedback_development = "feedback.sandbox.push.apple.com";
 		let feedback_port = 2196;
@@ -227,7 +228,7 @@ impl APNS {
     }
 
 	#[allow(dead_code)]
-	pub fn send_payload(&mut self, payload: Payload, device_token: &str) {
+	pub fn send_payload(&self, payload: Payload, device_token: &str) {
 		let payload_str = match json::encode(&payload) {
 			Ok(json_str) => {
 				json_str.to_string()
@@ -300,7 +301,7 @@ impl APNS {
 		notification_buffer.push_all(message_buffer.as_slice());
 		
 	    let mut retry_count = 3;	
-		while let Err(error) = self.ssl_stream.write_all(&notification_buffer) {
+		while let Err(error) = self.ssl_stream.borrow_mut().write_all(&notification_buffer) {
 			println!("ssl_stream write error {:?}", error);
 
             retry_count = retry_count - 1;
@@ -322,7 +323,9 @@ impl APNS {
 			
 			let ssl_result = get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate);
 			
-			self.ssl_stream = match ssl_result {
+			let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
+			
+			*borrow_ssl_stream = match ssl_result {
 				Ok(ssl_stream) => {
 					ssl_stream
 				},
@@ -330,7 +333,8 @@ impl APNS {
                     println!("failed to get_ssl_stream error {:?}", error);
                     continue; 
 				}
-			};
+			};			
+
 		}
 		
 		// Response error code
