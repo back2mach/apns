@@ -313,10 +313,12 @@ impl APNS {
 		notification_buffer.push_all(message_buffer_length.as_slice());
 		notification_buffer.push_all(message_buffer.as_slice());
 		
-	    let mut retry_count = 3;	
-		while let Err(error) = self.ssl_stream.borrow_mut().write_all(&notification_buffer) {
+	    let mut retry_count = 3;
+		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
+			
+		while let Err(error) = borrow_ssl_stream.write_all(&notification_buffer) {
 			println!("ssl_stream write error {:?}", error);
-
+			
             retry_count = retry_count - 1;
             if retry_count <= 0 {
                 break;
@@ -335,9 +337,6 @@ impl APNS {
 			};
 			
 			let ssl_result = get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate);
-			
-			let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
-			
 			*borrow_ssl_stream = match ssl_result {
 				Ok(ssl_stream) => {
 					ssl_stream
@@ -346,8 +345,7 @@ impl APNS {
                     println!("failed to get_ssl_stream error {:?}", error);
                     continue; 
 				}
-			};			
-
+			};
 		}
 		
 		// Response error code
