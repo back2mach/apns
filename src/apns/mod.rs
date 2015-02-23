@@ -71,11 +71,27 @@ impl<'a> Encodable for PayloadAPS<'a> {
 	fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
 	    match *self {
 			PayloadAPS{ref alert, ref badge, ref sound, ref content_available} => {
-    	        encoder.emit_struct("PayloadAPS", 4, |encoder| {
-					try!(encoder.emit_struct_field( "alert", 0usize, |encoder| alert.encode(encoder)));
-					try!(encoder.emit_struct_field( "badge", 1usize, |encoder| badge.encode(encoder)));
-					try!(encoder.emit_struct_field( "sound", 2usize, |encoder| sound.encode(encoder)));
-					try!(encoder.emit_struct_field( "content-available", 3usize, |encoder| content_available.encode(encoder)));
+				let mut count = 1;
+				if badge.is_some() { count = count + 1; }
+				if sound.is_some() { count = count + 1; }
+				if content_available.is_some() { count = count + 1; }
+				
+				let mut index = 0usize;
+    	        encoder.emit_struct("PayloadAPS", count, |encoder| {
+					try!(encoder.emit_struct_field( "alert", index, |encoder| alert.encode(encoder)));
+					index = index + 1;
+					if badge.is_some() { 
+						try!(encoder.emit_struct_field( "badge", index, |encoder| badge.unwrap().encode(encoder)));
+						index = index + 1;
+					}
+					if sound.is_some() { 
+						try!(encoder.emit_struct_field( "sound", index, |encoder| sound.unwrap().encode(encoder)));
+						index = index + 1;
+					}
+					if content_available.is_some() { 
+						try!(encoder.emit_struct_field( "content-available", index, |encoder| content_available.unwrap().encode(encoder)));
+						index = index + 1;
+					}
 					Ok(())
     	        })
 			}
@@ -103,7 +119,7 @@ impl<'a> Encodable for PayloadAPSAlert<'a> {
 #[allow(dead_code)]
 fn hex_to_int(hex: &str) -> u32 {
 	let mut total = 0u32;
-	let mut n = hex.to_string().capacity() - 1;
+	let mut n = hex.to_string().len() - 1;
 		
 	for c in hex.chars() {
 		match c {
@@ -136,8 +152,7 @@ fn convert_to_binary(device_token: &str) -> Vec<u8> {
 		
 		device_token_bytes.push_all(sub_str_bytes.as_slice());
 	}
-	device_token_bytes.shrink_to_fit();
-		
+			
 	return device_token_bytes;
 }
 
@@ -244,7 +259,7 @@ impl APNS {
 	
 		// Device token
 		let mut device_token_length = vec![];
-		let _ = device_token_length.write_u16::<BigEndian>(device_token_bytes.capacity() as u16);
+		let _ = device_token_length.write_u16::<BigEndian>(device_token_bytes.len() as u16);
 	
 		message_buffer.push(1u8);
 		message_buffer.push_all(device_token_length.as_slice());
@@ -252,7 +267,7 @@ impl APNS {
 	
 		// Payload
 		let mut payload_length = vec![];
-		let _ = payload_length.write_u16::<BigEndian>(payload_bytes.capacity() as u16);
+		let _ = payload_length.write_u16::<BigEndian>(payload_bytes.len() as u16);
 	
 		message_buffer.push(2u8);
 		message_buffer.push_all(payload_length.as_slice());
@@ -264,7 +279,7 @@ impl APNS {
 		let _ = payload_id_be.write_u32::<BigEndian>(payload_id);
 	
 		let mut payload_id_length = vec![];
-		let _ = payload_id_length.write_u16::<BigEndian>(payload_id_be.capacity() as u16);
+		let _ = payload_id_length.write_u16::<BigEndian>(payload_id_be.len() as u16);
 	
 		message_buffer.push(3u8);
 		message_buffer.push_all(payload_id_length.as_slice());
@@ -276,7 +291,7 @@ impl APNS {
 		let _ = exp_date_be.write_u32::<BigEndian>(time as u32);
 	
 		let mut exp_date_length = vec![];
-		let _ = exp_date_length.write_u16::<BigEndian>(exp_date_be.capacity() as u16);
+		let _ = exp_date_length.write_u16::<BigEndian>(exp_date_be.len() as u16);
 	
 		message_buffer.push(4u8);
 		message_buffer.push_all(exp_date_length.as_slice());
@@ -290,10 +305,8 @@ impl APNS {
 		message_buffer.push_all(priority_length.as_slice());
 		message_buffer.push(10u8);
 	
-		message_buffer.shrink_to_fit();
-	
 		let mut message_buffer_length = vec![];
-		let _ = message_buffer_length.write_u32::<BigEndian>(message_buffer.capacity() as u32);
+		let _ = message_buffer_length.write_u32::<BigEndian>(message_buffer.len() as u32);
 		
 		let command = 2u8;
 		notification_buffer.push(command);
