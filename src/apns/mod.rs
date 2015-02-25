@@ -292,54 +292,40 @@ impl APNS {
 		notification_buffer.push_all(message_buffer_length.as_slice());
 		notification_buffer.push_all(message_buffer.as_slice());
 		
-				
-		if self.ssl_stream.borrow().is_none() {
-			let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
-			*borrow_ssl_stream = Some(self.init_push_ssl_stream().unwrap());
+		let should_init_ssl_stream = self.ssl_stream.borrow().is_none();
+		
+		if should_init_ssl_stream {
+			self.init_push_ssl_stream();
 		}
-		else {
-			let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
-			let mut retry_count = 3;
-			loop {
-				{
-					if let Some(mut ssl_stream) = borrow_ssl_stream.as_mut() {
-						if let Err(error) = ssl_stream.write_all(&notification_buffer) {
-							println!("ssl_stream write error {:?}", error);
-						}
-						else {
-							println!("ssl_stream wrote successfully. {}", payload_id);
-							break;
-						}
-					
-						// Response error code
-						/*{
-							let mut read_buffer = [0u8; 6];
-							println!("SslStream read {:?}", ssl_stream.read(&mut read_buffer));
-
-							for c in read_buffer.iter() {
-								print!("{}", c);
-							}
-							println!("");
-						}*/
-					}
+		else {		
+			if let Some(ssl_stream) = self.ssl_stream.borrow_mut().as_mut() {
+				while let Err(error) = ssl_stream.write_all(&notification_buffer) {
+					println!("ssl_stream write error {:?}", error);
+/*		            self.init_push_ssl_stream();*/
 				}
-								
-				if retry_count <= 0 { break; }
-				retry_count = retry_count - 1;
 				
-				*borrow_ssl_stream = Some(self.init_push_ssl_stream().unwrap());
-			}			
-		}		
+				// Response error code
+				/*let mut read_buffer = [0u8; 6];
+				println!("SslStream read {:?}", ssl_stream.read(&mut read_buffer));
+
+				for c in read_buffer.iter() {
+					print!("{}", c);
+				}
+				println!("");*/
+			}
+		}
 	}
 	
-	fn init_push_ssl_stream(&self) -> Result<SslStream<TcpStream>, SslError> {
+	fn init_push_ssl_stream(&self) {
+		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
+	
 		let apns_url_production = "gateway.push.apple.com";
 		let apns_url_development = "gateway.sandbox.push.apple.com";
 		let apns_port = 2195;
 	
 		let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
-		
-		get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate)
+	
+		*borrow_ssl_stream = Some(get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate).unwrap());
 	}
 }
 
