@@ -301,27 +301,29 @@ impl APNS {
 			let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
 			let mut retry_count = 3;
 			loop {
-				if let Some(mut ssl_stream) = borrow_ssl_stream.as_mut() {
-					if let Err(error) = ssl_stream.write_all(&notification_buffer) {
-						println!("ssl_stream write error {:?}", error);
-					}
-					else {
-						println!("ssl_stream wrote successfully. {}", payload_id);
-						break;
-					}
-					
-					// Response error code
-					/*{
-						let mut read_buffer = [0u8; 6];
-						println!("SslStream read {:?}", ssl_stream.read(&mut read_buffer));
-
-						for c in read_buffer.iter() {
-							print!("{}", c);
+				{
+					if let Some(mut ssl_stream) = borrow_ssl_stream.as_mut() {
+						if let Err(error) = ssl_stream.write_all(&notification_buffer) {
+							println!("ssl_stream write error {:?}", error);
 						}
-						println!("");
-					}*/
+						else {
+							println!("ssl_stream wrote successfully. {}", payload_id);
+							break;
+						}
+					
+						// Response error code
+						/*{
+							let mut read_buffer = [0u8; 6];
+							println!("SslStream read {:?}", ssl_stream.read(&mut read_buffer));
+
+							for c in read_buffer.iter() {
+								print!("{}", c);
+							}
+							println!("");
+						}*/
+					}
 				}
-				
+								
 				if retry_count <= 0 { break; }
 				retry_count = retry_count - 1;
 				
