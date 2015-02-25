@@ -184,48 +184,29 @@ pub struct APNS {
 	pub certificate: Path,
 	pub private_key: Path,
 	pub ca_certificate: Path,
-	pub ssl_stream: RefCell<SslStream<TcpStream>>
+	pub ssl_stream: RefCell<Option<SslStream<TcpStream>>>
 }
 
 impl APNS {
 	pub fn new(sandbox: bool, cert_file: Path, private_key_file: Path, ca_file: Path) -> APNS {
-		let apns_url_production = "gateway.push.apple.com";
-		let apns_url_development = "gateway.sandbox.push.apple.com";
-		let apns_port = 2195;
-		
-		let apns_url = if sandbox {
-			apns_url_development
-		}
-		else {
-			apns_url_production
-		};
-		
-		let ssl_stream = RefCell::new(get_ssl_stream(apns_url, apns_port, &cert_file, &private_key_file, &ca_file).unwrap());	
-			
-		APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: ssl_stream}
+		APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: RefCell::new(None)}
 	}
 	
 	#[allow(dead_code)]
-    pub fn get_feedback(&self) -> Vec<(u32, String)> {    
+    pub fn get_feedback(&self) -> Result<Vec<(u32, String)>, SslError> {    
 		let apns_feedback_production = "feedback.push.apple.com";
 		let apns_feedback_development = "feedback.sandbox.push.apple.com";
 		let feedback_port = 2196;
         
-		let apns_feedback_url = if self.sandbox {
-			apns_feedback_development
-		}
-		else {
-			apns_feedback_production
-		};
-		
-		let mut stream = get_ssl_stream(apns_feedback_url, feedback_port, &self.certificate, &self.private_key, &self.ca_certificate).unwrap();
+		let apns_feedback_url = if self.sandbox { apns_feedback_development } else { apns_feedback_production };
+		let mut stream = try!(get_ssl_stream(apns_feedback_url, feedback_port, &self.certificate, &self.private_key, &self.ca_certificate));
 		
 		let mut tokens: Vec<(u32, String)> = Vec::new();
         loop {
 			let mut read_buffer = [0u8; 38];
 			if let Err(..) = stream.read(&mut read_buffer) {
-/*                println!("Feedback read error {:?}", error);*/
 				break;
+/*				return Result::Err(SslError::StreamError(error));*/
             }
 			
 			let time_range = Range{start:0, end:4};
@@ -239,7 +220,7 @@ impl APNS {
 			tokens.push((time, token));
         }
 
-        return tokens;
+        return Result::Ok(tokens);
     }
 
 	#[allow(dead_code)]
@@ -313,39 +294,16 @@ impl APNS {
 		notification_buffer.push_all(message_buffer_length.as_slice());
 		notification_buffer.push_all(message_buffer.as_slice());
 		
-	    let mut retry_count = 3;
-		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
-			
-		while let Err(error) = borrow_ssl_stream.write_all(&notification_buffer) {
-			println!("ssl_stream write error {:?}", error);
-			
-            retry_count = retry_count - 1;
-            if retry_count <= 0 {
-                break;
-            }
-
-            // try to recreate ssl stream
-			let apns_url_production = "gateway.push.apple.com";
-			let apns_url_development = "gateway.sandbox.push.apple.com";
-			let apns_port = 2195;
-			
-			let apns_url = if self.sandbox {
-				apns_url_development
-			}
-			else {
-				apns_url_production
-			};
-			
-			let ssl_result = get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate);
-			*borrow_ssl_stream = match ssl_result {
-				Ok(ssl_stream) => {
-					ssl_stream
-				},
-				Err(error) => {
-                    println!("failed to get_ssl_stream error {:?}", error);
-                    continue; 
+		if self.ssl_stream.borrow().is_none() {
+			self.init_push_ssl_stream();
+		}
+		else {		
+			if let Some(ssl_stream) = self.ssl_stream.borrow_mut().as_mut() {
+				while let Err(error) = ssl_stream.write_all(&notification_buffer) {
+					println!("ssl_stream write error {:?}", error);
+		            self.init_push_ssl_stream();
 				}
-			};
+			}
 		}
 		
 		// Response error code
@@ -359,17 +317,23 @@ impl APNS {
 		println!("");
 */
 	}
+	
+	fn init_push_ssl_stream(&self) {
+		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
+	
+		let apns_url_production = "gateway.push.apple.com";
+		let apns_url_development = "gateway.sandbox.push.apple.com";
+		let apns_port = 2195;
+	
+		let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
+	
+		*borrow_ssl_stream = Some(get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate).unwrap());
+	}
 }
 
 fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
-	let mut context = match ssl::SslContext::new(ssl::SslMethod::Sslv23) {
-		Ok(ctx) => {
-			ctx
-		},
-		Err(error) => {
-			panic!("SslContext new error {:?}", error);
-		}
-	};
+	let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
+	
 	if let Some(error) = context.set_CA_file(&ca_file) {
 		println!("set_CA_file error {:?}", error);
 	}
@@ -381,24 +345,21 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 	}
 
 	let apns_ip = match net::addrinfo::get_host_addresses(url) {
-		Ok(results) => {
-			results[0]
-		},
+		Ok(results) => { results[0] },
 		Err(error) => {
-			panic!("unable to resolve host address: {:?}", error);
+			return Result::Err(SslError::StreamError(error));
 		}
 	};
 
 	let sock_addr = SocketAddr{ip: apns_ip, port: port};
-    let tcp_conn = TcpStream::connect(sock_addr).unwrap();
-	let ssl = match ssl::Ssl::new(&context) {
-		Ok(conn) => {
-			conn
-		},
+    let tcp_conn = match TcpStream::connect(sock_addr) {
+		Ok(conn) => { conn },
 		Err(error) => {
-			panic!("Ssl new error {:?}", error);
+			return Result::Err(SslError::StreamError(error));
 		}
 	};
+	
+	let ssl = try!(ssl::Ssl::new(&context));
 
 	return SslStream::new_from(ssl, tcp_conn);
 }
