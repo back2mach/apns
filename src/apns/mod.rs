@@ -294,14 +294,16 @@ impl APNS {
 		notification_buffer.push_all(message_buffer_length.as_slice());
 		notification_buffer.push_all(message_buffer.as_slice());
 		
-		if self.ssl_stream.borrow().is_none() {
+		let should_init_ssl_stream = self.ssl_stream.borrow().is_none();
+		
+		if should_init_ssl_stream {
 			self.init_push_ssl_stream();
 		}
 		else {		
 			if let Some(ssl_stream) = self.ssl_stream.borrow_mut().as_mut() {
 				while let Err(error) = ssl_stream.write_all(&notification_buffer) {
 					println!("ssl_stream write error {:?}", error);
-		            self.init_push_ssl_stream();
+/*		            self.init_push_ssl_stream();*/
 				}
 			}
 		}
