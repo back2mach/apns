@@ -18,7 +18,7 @@ use std::old_io::{TcpStream, MemReader};
 use std::old_path::posix::Path;
 use std::collections::HashMap;
 
-use rand;
+use rand::{self, Rng};
 use time;
 
 #[derive(Debug)]
@@ -226,9 +226,7 @@ impl APNS {
 	#[allow(dead_code)]
 	pub fn send_payload(&self, payload: Payload, device_token: &str) {
 		let payload_str = match json::encode(&payload) {
-			Ok(json_str) => {
-				json_str.to_string()
-			}
+			Ok(json_str) => { json_str.to_string() }
 			_ => { return; }
 		};
 	
@@ -253,9 +251,9 @@ impl APNS {
 		message_buffer.push(2u8);
 		message_buffer.push_all(payload_length.as_slice());
 		message_buffer.push_all(payload_bytes.as_slice());
-		
+				
 		// Notification identifier
-		let payload_id = rand::random::<u32>();
+		let payload_id = rand::thread_rng().gen();
 		let mut payload_id_be = vec![];
 		let _ = payload_id_be.write_u32::<BigEndian>(payload_id);
 	
@@ -315,9 +313,10 @@ impl APNS {
 				}
 				println!("");*/
 			}
-		}
-		
-		
+			else {
+				println!("ssl_stream wrote successfully. {}", payload_id);
+			}
+		}		
 	}
 	
 	fn init_push_ssl_stream(&self) {
