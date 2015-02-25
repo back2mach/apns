@@ -305,19 +305,19 @@ impl APNS {
 					println!("ssl_stream write error {:?}", error);
 /*		            self.init_push_ssl_stream();*/
 				}
+				
+				// Response error code
+				let mut read_buffer = [0u8; 6];
+				println!("SslStream read {:?}", ssl_stream.read(&mut read_buffer));
+
+				for c in read_buffer.iter() {
+					print!("{}", c);
+				}
+				println!("");
 			}
 		}
 		
-		// Response error code
-/*
-		let mut read_buffer = [0u8; 6];
-		println!("SslStream read {:?}", self.ssl_stream.read(&mut read_buffer));
-
-		for c in read_buffer.iter() {
-			print!("{}", c);
-		}
-		println!("");
-*/
+		
 	}
 	
 	fn init_push_ssl_stream(&self) {
