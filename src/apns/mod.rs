@@ -184,19 +184,12 @@ pub struct APNS {
 	pub certificate: Path,
 	pub private_key: Path,
 	pub ca_certificate: Path,
-	pub ssl_stream: RefCell<SslStream<TcpStream>>
+	pub ssl_stream: RefCell<Option<SslStream<TcpStream>>>
 }
 
 impl APNS {
 	pub fn new(sandbox: bool, cert_file: Path, private_key_file: Path, ca_file: Path) -> APNS {
-		let apns_url_production = "gateway.push.apple.com";
-		let apns_url_development = "gateway.sandbox.push.apple.com";
-		let apns_port = 2195;
-		
-		let apns_url = if sandbox { apns_url_development } else { apns_url_production };
-		
-		let ssl_stream = RefCell::new(get_ssl_stream(apns_url, apns_port, &cert_file, &private_key_file, &ca_file).unwrap());		
-		APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: ssl_stream}
+		APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: RefCell::new(None)}
 	}
 	
 	#[allow(dead_code)]
@@ -302,7 +295,49 @@ impl APNS {
 		let mut retry_count = 3;
 		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
 		
-		while let Err(error) = borrow_ssl_stream.write_all(&notification_buffer) {
+		loop {
+			let mut should_retry = false;
+			
+			if let Some(ssls) = borrow_ssl_stream.as_mut() {
+				if let Err(error) = ssls.write_all(&notification_buffer) {
+					println!("ssl_stream write error {:?}", error);
+										
+		            retry_count = retry_count - 1;
+		            should_retry = retry_count > 0;
+				}
+			}
+			else {
+	            retry_count = retry_count - 1;
+	            should_retry = retry_count > 0;
+			}
+			
+			if should_retry {
+	            // try to recreate ssl stream
+				let apns_url_production = "gateway.push.apple.com";
+				let apns_url_development = "gateway.sandbox.push.apple.com";
+				let apns_port = 2195;
+
+				let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
+		
+				let ssl_result = get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate);
+				*borrow_ssl_stream = match ssl_result {
+					Ok(ssl_stream) => { Some(ssl_stream) },
+					Err(error) => {
+	                    println!("failed to get_ssl_stream error {:?}", error);
+	                    None
+					}
+				};
+				
+				continue;
+			}
+			
+			break;
+		}
+		
+		
+		
+		/*
+		while let Err(error) = borrow_ssl_stream.as_mut().write_all(&notification_buffer) {
 			println!("ssl_stream write error {:?}", error);
 			
             retry_count = retry_count - 1;
@@ -320,14 +355,15 @@ impl APNS {
 			let ssl_result = get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate);
 			*borrow_ssl_stream = match ssl_result {
 				Ok(ssl_stream) => {
-					ssl_stream
+					Some(ssl_stream)
 				},
 				Err(error) => {
                     println!("failed to get_ssl_stream error {:?}", error);
-                    continue;
+                    None
 				}
 			}
 		}
+		*/
 	}
 		// Response error code
 /*
