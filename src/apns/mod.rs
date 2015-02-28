@@ -342,13 +342,13 @@ impl<'a> APNS<'a> {
 fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
 	let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
 	
-	if let Some(error) = context.set_CA_file(ca_file) {
+	if let Some(error) = context.set_CA_file(&ca_file) {
 		println!("set_CA_file error {:?}", error);
 	}
-	if let Some(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
+	if let Some(error) = context.set_certificate_file(&cert_file, openssl::x509::X509FileType::PEM) {
 		println!("set_certificate_file error {:?}", error);
 	}
-	if let Some(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
+	if let Some(error) = context.set_private_key_file(&private_key_file, openssl::x509::X509FileType::PEM) {
 		println!("set_private_key_file error {:?}", error);
 	}
 
@@ -368,6 +368,8 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 		}
 	};
     */
+
+    println!("apns_ip {:?}", apns_ip);
 
 	let sock_addr = SocketAddr::new(apns_ip.ip(), port);
     let tcp_conn = match TcpStream::connect(&sock_addr) {
