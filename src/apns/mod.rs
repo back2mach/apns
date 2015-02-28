@@ -373,12 +373,12 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
     let tcp_conn = match TcpStream::connect(&sock_addr) {
 		Ok(conn) => { conn },
 		Err(error) => {
+            println!("tcp_stream connect error {:?}", error);
 			return Result::Err(SslError::StreamError(error));
 		}
 	};
 	
     println!("addr {:?}", sock_addr);
-    println!("conn {:?}", tcp_conn);
 
 	let ssl = try!(ssl::Ssl::new(&context));
 
