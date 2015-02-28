@@ -200,6 +200,8 @@ impl<'a> APNS<'a> {
         
 		let apns_feedback_url = if self.sandbox { apns_feedback_development } else { apns_feedback_production };
 		let mut stream = try!(get_ssl_stream(apns_feedback_url, feedback_port, self.certificate, self.private_key, self.ca_certificate));
+
+        println!("get_ssl_stream");
 		
 		let mut tokens: Vec<(u32, String)> = Vec::new();
         loop {
@@ -216,7 +218,9 @@ impl<'a> APNS<'a> {
 			let token_range = Range{start:6, end:38};
 			let token_slice = read_buffer.index(&token_range);
             let token = convert_to_token(token_slice);
-						
+			
+            println!("token {:?}", token);
+
 			tokens.push((time, token));
         }
 
@@ -342,13 +346,13 @@ impl<'a> APNS<'a> {
 fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
 	let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
 	
-	if let Some(error) = context.set_CA_file(&ca_file) {
+	if let Some(error) = context.set_CA_file(ca_file) {
 		println!("set_CA_file error {:?}", error);
 	}
-	if let Some(error) = context.set_certificate_file(&cert_file, openssl::x509::X509FileType::PEM) {
+	if let Some(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
 		println!("set_certificate_file error {:?}", error);
 	}
-	if let Some(error) = context.set_private_key_file(&private_key_file, openssl::x509::X509FileType::PEM) {
+	if let Some(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
 		println!("set_private_key_file error {:?}", error);
 	}
 
@@ -360,15 +364,6 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
     }
     let apns_ip = ip_result.unwrap();
 
-    /*
-	let apns_ip = match net::addrinfo::get_host_addresses(url) {
-		Ok(results) => { results[0] },
-		Err(error) => {
-			return Result::Err(SslError::StreamError(error));
-		}
-	};
-    */
-
 	let sock_addr = SocketAddr::new(apns_ip.ip(), port);
     let tcp_conn = match TcpStream::connect(&sock_addr) {
 		Ok(conn) => { conn },
@@ -378,8 +373,6 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 		}
 	};
 	
-    println!("addr {:?}", sock_addr);
-
 	let ssl = try!(ssl::Ssl::new(&context));
 
 	return SslStream::new_from(ssl, tcp_conn);
