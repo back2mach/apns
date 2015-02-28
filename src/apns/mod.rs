@@ -201,14 +201,19 @@ impl<'a> APNS<'a> {
 		let apns_feedback_url = if self.sandbox { apns_feedback_development } else { apns_feedback_production };
 		let mut stream = try!(get_ssl_stream(apns_feedback_url, feedback_port, self.certificate, self.private_key, self.ca_certificate));
 
-        println!("get_ssl_stream");
-		
 		let mut tokens: Vec<(u32, String)> = Vec::new();
+        let mut read_buffer = [0u8; 38];
         loop {
-			let mut read_buffer = [0u8; 38];
-			if let Err(..) = stream.read(&mut read_buffer) {
-				break;
+            match stream.read(&mut read_buffer) {
+                Ok(size) => {
+                    if size != 38 {
+                        break;
+                    }
+                },
+                Err(..) => {
 /*				return Result::Err(SslError::StreamError(error));*/
+                    break;
+                }
             }
 			
 			let time_range = Range{start:0, end:4};
@@ -219,8 +224,6 @@ impl<'a> APNS<'a> {
 			let token_slice = read_buffer.index(&token_range);
             let token = convert_to_token(token_slice);
 			
-            println!("token {:?}", token);
-
 			tokens.push((time, token));
         }
 
