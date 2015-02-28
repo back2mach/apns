@@ -305,8 +305,6 @@ impl<'a> APNS<'a> {
 		let mut retry_count = 3;
 		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
 		
-        println!("{:?}", notification_buffer);
-
 		loop {			
 			if let Some(ssls) = borrow_ssl_stream.as_mut() {
 				if let Err(error) = ssls.write_all(&notification_buffer) {
@@ -314,7 +312,6 @@ impl<'a> APNS<'a> {
 				}
 				else {
 					// Response error code
-					/*
 					let mut read_buffer = [0u8; 6];
 					println!("SslStream read {:?}", self.ssl_stream.read(&mut read_buffer));
 
@@ -322,7 +319,6 @@ impl<'a> APNS<'a> {
 						print!("{}", c);
 					}
 					println!("");
-					*/
 					
 					break;
 				}
