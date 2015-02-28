@@ -369,8 +369,6 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 	};
     */
 
-    println!("apns_ip {:?}", apns_ip);
-
 	let sock_addr = SocketAddr::new(apns_ip.ip(), port);
     let tcp_conn = match TcpStream::connect(&sock_addr) {
 		Ok(conn) => { conn },
@@ -379,6 +377,9 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 		}
 	};
 	
+    println!("addr {:?}", sock_addr);
+    println!("conn {:?}", tcp_conn);
+
 	let ssl = try!(ssl::Ssl::new(&context));
 
 	return SslStream::new_from(ssl, tcp_conn);
