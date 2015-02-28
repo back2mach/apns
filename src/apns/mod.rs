@@ -1,4 +1,4 @@
-use byteorder::{BigEndian, ReaderBytesExt, WriterBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use rustc_serialize::Encodable;
 use rustc_serialize::Encoder;
@@ -12,10 +12,10 @@ use openssl::ssl::error::SslError;
 use std::cell::RefCell;
 use std::num::Int;
 use std::ops::{Range, Index};
-use std::old_io::net;
-use std::old_io::net::ip::SocketAddr;
-use std::old_io::{TcpStream, MemReader};
-use std::old_path::posix::Path;
+use std::net;
+use std::net::{SocketAddr, TcpStream};
+use std::io::{Cursor, Read, Write};
+use std::path::Path;
 use std::collections::HashMap;
 
 use rand::{self, Rng};
@@ -163,7 +163,7 @@ pub fn convert_to_token(binary: &[u8]) -> String {
 		let range = Range{start:i*4, end:i*4+4};
 		let sub_slice = binary.index(&range);
 		
-		let mut rdr = MemReader::new(sub_slice.to_vec());
+		let mut rdr = Cursor::new(sub_slice.to_vec());
 		let num = rdr.read_u32::<BigEndian>().unwrap();
 		
 		token = format!("{}{:x}", token, num);
@@ -173,29 +173,29 @@ pub fn convert_to_token(binary: &[u8]) -> String {
 
 #[allow(dead_code)]
 pub fn convert_to_timestamp(binary: &[u8]) -> u32 {
-	let mut rdr = MemReader::new(binary.to_vec());
+	let mut rdr = Cursor::new(binary.to_vec());
 	let num = rdr.read_u32::<BigEndian>().unwrap();
 	
 	return num;
 }
 
-pub struct APNS {
+pub struct APNS<'a> {
 	pub sandbox: bool,
-	pub certificate: Path,
-	pub private_key: Path,
-	pub ca_certificate: Path,
+	pub certificate: &'a Path,
+	pub private_key: &'a Path,
+	pub ca_certificate: &'a Path,
 	pub ssl_stream: RefCell<SslStream<TcpStream>>
 }
 
-impl APNS {
-	pub fn new(sandbox: bool, cert_file: Path, private_key_file: Path, ca_file: Path) -> APNS {
+impl<'a> APNS<'a> {
+	pub fn new(sandbox: bool, cert_file: &'a Path, private_key_file: &'a Path, ca_file: &'a Path) -> APNS<'a> {
 		let apns_url_production = "gateway.push.apple.com";
 		let apns_url_development = "gateway.sandbox.push.apple.com";
 		let apns_port = 2195;
 		
 		let apns_url = if sandbox { apns_url_development } else { apns_url_production };
 		
-		let ssl_stream = RefCell::new(get_ssl_stream(apns_url, apns_port, &cert_file, &private_key_file, &ca_file).unwrap());		
+		let ssl_stream = RefCell::new(get_ssl_stream(apns_url, apns_port, cert_file, private_key_file, ca_file).unwrap());		
 		APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: ssl_stream}
 	}
 	
@@ -354,15 +354,25 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 		println!("set_private_key_file error {:?}", error);
 	}
 
+    let lookup_host = net::lookup_host(url).unwrap();
+    let mut ip_result: Option<SocketAddr> = None;
+    for host in lookup_host {
+        ip_result = Some(host.unwrap());
+        break;
+    }
+    let apns_ip = ip_result.unwrap();
+
+    /*
 	let apns_ip = match net::addrinfo::get_host_addresses(url) {
 		Ok(results) => { results[0] },
 		Err(error) => {
 			return Result::Err(SslError::StreamError(error));
 		}
 	};
+    */
 
-	let sock_addr = SocketAddr{ip: apns_ip, port: port};
-    let tcp_conn = match TcpStream::connect(sock_addr) {
+	let sock_addr = SocketAddr::new(apns_ip.ip(), port);
+    let tcp_conn = match TcpStream::connect(&sock_addr) {
 		Ok(conn) => { conn },
 		Err(error) => {
 			return Result::Err(SslError::StreamError(error));

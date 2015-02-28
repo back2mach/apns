@@ -1,6 +1,7 @@
 #![feature(core)]
-#![feature(old_io)]
-#![feature(old_path)]
+#![feature(io)]
+#![feature(path)]
+#![feature(net)]
 #![feature(collections)]
 
 extern crate rand;
