@@ -234,7 +234,10 @@ impl<'a> APNS<'a> {
 	pub fn send_payload(&self, payload: Payload, device_token: &str) {
 		let payload_str = match json::encode(&payload) {
 			Ok(json_str) => { json_str.to_string() }
-			_ => { return; }
+			Err(error) => {
+                println!("json encode error {:?}", error);
+                return; 
+            }
 		};
 	
 		let payload_bytes = payload_str.into_bytes();
@@ -302,6 +305,8 @@ impl<'a> APNS<'a> {
 		let mut retry_count = 3;
 		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
 		
+        println!("{:?}", notification_buffer);
+
 		loop {			
 			if let Some(ssls) = borrow_ssl_stream.as_mut() {
 				if let Err(error) = ssls.write_all(&notification_buffer) {
@@ -325,6 +330,9 @@ impl<'a> APNS<'a> {
 						
 			if retry_count >= 0 {
 	            // try to recreate ssl stream
+
+                println!("try to recreate ssl stream");
+
 				let apns_url_production = "gateway.push.apple.com";
 				let apns_url_development = "gateway.sandbox.push.apple.com";
 				let apns_port = 2195;
