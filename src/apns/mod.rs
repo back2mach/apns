@@ -312,6 +312,7 @@ impl<'a> APNS<'a> {
 				}
 				else {
 					// Response error code
+                    /*
 					let mut read_buffer = [0u8; 6];
 					match ssls.read(&mut read_buffer) {
                         Ok(size) => {
@@ -326,6 +327,7 @@ impl<'a> APNS<'a> {
                             println!("ssl_stream read error {:?}", error);
                         }
                     }
+                    */
                     break;
 				}
 			}
