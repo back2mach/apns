@@ -313,7 +313,7 @@ impl<'a> APNS<'a> {
 				else {
 					// Response error code
 					let mut read_buffer = [0u8; 6];
-					println!("SslStream read {:?}", self.ssl_stream.read(&mut read_buffer));
+					self.ssl_stream.read(&mut read_buffer);
 
 					for c in read_buffer.iter() {
 						print!("{}", c);
