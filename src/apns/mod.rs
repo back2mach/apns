@@ -199,7 +199,7 @@ impl<'a> APNS<'a> {
 		let feedback_port = 2196;
         
 		let apns_feedback_url = if self.sandbox { apns_feedback_development } else { apns_feedback_production };
-		let mut stream = try!(get_ssl_stream(apns_feedback_url, feedback_port, &self.certificate, &self.private_key, &self.ca_certificate));
+		let mut stream = try!(get_ssl_stream(apns_feedback_url, feedback_port, self.certificate, self.private_key, self.ca_certificate));
 		
 		let mut tokens: Vec<(u32, String)> = Vec::new();
         loop {
@@ -324,7 +324,7 @@ impl<'a> APNS<'a> {
 				
 				let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
 				
-				let ssl_result = get_ssl_stream(apns_url, apns_port, &self.certificate, &self.private_key, &self.ca_certificate);
+				let ssl_result = get_ssl_stream(apns_url, apns_port, self.certificate, self.private_key, self.ca_certificate);
 				*borrow_ssl_stream = match ssl_result {
 					Ok(ssl_stream) => { Some(ssl_stream) },
 					Err(error) => {
@@ -342,13 +342,13 @@ impl<'a> APNS<'a> {
 fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
 	let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
 	
-	if let Some(error) = context.set_CA_file(&ca_file) {
+	if let Some(error) = context.set_CA_file(ca_file) {
 		println!("set_CA_file error {:?}", error);
 	}
-	if let Some(error) = context.set_certificate_file(&cert_file, openssl::x509::X509FileType::PEM) {
+	if let Some(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
 		println!("set_certificate_file error {:?}", error);
 	}
-	if let Some(error) = context.set_private_key_file(&private_key_file, openssl::x509::X509FileType::PEM) {
+	if let Some(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
 		println!("set_private_key_file error {:?}", error);
 	}
 
