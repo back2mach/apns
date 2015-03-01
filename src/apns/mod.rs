@@ -307,12 +307,18 @@ impl<'a> APNS<'a> {
 		
 		loop {			
 			if let Some(ssls) = borrow_ssl_stream.as_mut() {
-				if let Err(error) = ssls.write(&notification_buffer) {
-					println!("ssl_stream write error {:?}", error);		            
-				}
+                let _ = ssls.flush();
+                match ssls.write(&notification_buffer) {
+                    Ok(..) => { break; },
+                    Err(error) => {
+                        println!("ssl_stream write error {:?}", error); 
+                    }
+                }
+                let _ = ssls.flush();
+                //println!("flush {:?}", ssls.flush());
+                /*
 				else {
 					// Response error code
-                    /*
 					let mut read_buffer = [0u8; 6];
 					match ssls.read(&mut read_buffer) {
                         Ok(size) => {
@@ -327,9 +333,9 @@ impl<'a> APNS<'a> {
                             println!("ssl_stream read error {:?}", error);
                         }
                     }
-                    */
                     break;
 				}
+                */
 			}
 						
 			if retry_count >= 0 {
@@ -388,8 +394,6 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 		}
 	};
 	
-	let ssl = try!(ssl::Ssl::new(&context));
-
-	return SslStream::new_from(ssl, tcp_conn);
+	return SslStream::new(&context, tcp_conn);
 }
 
