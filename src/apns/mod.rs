@@ -307,7 +307,7 @@ impl<'a> APNS<'a> {
 		
 		loop {			
 			if let Some(ssls) = borrow_ssl_stream.as_mut() {
-				if let Err(error) = ssls.write_all(&notification_buffer) {
+				if let Err(error) = ssls.write(&notification_buffer) {
 					println!("ssl_stream write error {:?}", error);		            
 				}
 				else {
