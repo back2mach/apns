@@ -232,136 +232,150 @@ impl<'a> APNS<'a> {
 
 	#[allow(dead_code)]
 	pub fn send_payload(&self, payload: Payload, device_token: &str) {
-		let payload_str = match json::encode(&payload) {
-			Ok(json_str) => { json_str.to_string() }
-			Err(error) => {
-                println!("json encode error {:?}", error);
-                return; 
+        let notification_bytes = get_notification_bytes(payload, device_token);
+
+		let mut should_retry = true;
+        let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
+    
+        if let Some(ssls) = borrow_ssl_stream.as_mut() {
+            let _ = ssls.flush();
+            match ssls.write_all(&notification_bytes) {
+                Ok(..) => {
+                    should_retry = false;
+                },
+                Err(error) => {
+                    println!("ssl_stream write error {:?}", error); 
+                }
             }
-		};
-	
-		let payload_bytes = payload_str.into_bytes();
-		let device_token_bytes: Vec<u8> = convert_to_binary(device_token);
-	
-		let mut notification_buffer: Vec<u8> = vec![];
-		let mut message_buffer: Vec<u8> = vec![];
-	
-		// Device token
-		let mut device_token_length = vec![];
-		let _ = device_token_length.write_u16::<BigEndian>(device_token_bytes.len() as u16);
-	
-		message_buffer.push(1u8);
-		message_buffer.push_all(device_token_length.as_slice());
-		message_buffer.push_all(device_token_bytes.as_slice());
-	
-		// Payload
-		let mut payload_length = vec![];
-		let _ = payload_length.write_u16::<BigEndian>(payload_bytes.len() as u16);
-	
-		message_buffer.push(2u8);
-		message_buffer.push_all(payload_length.as_slice());
-		message_buffer.push_all(payload_bytes.as_slice());
-				
-		// Notification identifier
-		let payload_id = rand::thread_rng().gen();
-		let mut payload_id_be = vec![];
-		let _ = payload_id_be.write_u32::<BigEndian>(payload_id);
-	
-		let mut payload_id_length = vec![];
-		let _ = payload_id_length.write_u16::<BigEndian>(payload_id_be.len() as u16);
-	
-		message_buffer.push(3u8);
-		message_buffer.push_all(payload_id_length.as_slice());
-		message_buffer.push_all(payload_id_be.as_slice());
-	
-		//	Expiration date
-		let time = time::now().to_timespec().sec + 86400;	// expired after one day
-		let mut exp_date_be = vec![];
-		let _ = exp_date_be.write_u32::<BigEndian>(time as u32);
-	
-		let mut exp_date_length = vec![];
-		let _ = exp_date_length.write_u16::<BigEndian>(exp_date_be.len() as u16);
-	
-		message_buffer.push(4u8);
-		message_buffer.push_all(exp_date_length.as_slice());
-		message_buffer.push_all(exp_date_be.as_slice());
-	
-		// Priority
-		let mut priority_length = vec![];
-		let _ = priority_length.write_u16::<BigEndian>(1u16);
-	
-		message_buffer.push(5u8);
-		message_buffer.push_all(priority_length.as_slice());
-		message_buffer.push(10u8);
-	
-		let mut message_buffer_length = vec![];
-		let _ = message_buffer_length.write_u32::<BigEndian>(message_buffer.len() as u32);
-		
-		let command = 2u8;
-		notification_buffer.push(command);
-		notification_buffer.push_all(message_buffer_length.as_slice());
-		notification_buffer.push_all(message_buffer.as_slice());
-		
-		let mut retry_count = 3;
-		let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
-		
-		loop {			
-			if let Some(ssls) = borrow_ssl_stream.as_mut() {
-                let _ = ssls.flush();
-                match ssls.write(&notification_buffer) {
-                    Ok(..) => { break; },
+            let _ = ssls.flush();
+            //println!("flush {:?}", ssls.flush());
+            /*
+            else {
+                // Response error code
+                let mut read_buffer = [0u8; 6];
+                match ssls.read(&mut read_buffer) {
+                    Ok(size) => {
+                        if size == 6 {
+                            for c in read_buffer.iter() {
+                                print!("{}", c);
+                            }
+                            println!("");
+                        }
+                    },
                     Err(error) => {
-                        println!("ssl_stream write error {:?}", error); 
+                        println!("ssl_stream read error {:?}", error);
                     }
                 }
-                let _ = ssls.flush();
-                //println!("flush {:?}", ssls.flush());
-                /*
-				else {
-					// Response error code
-					let mut read_buffer = [0u8; 6];
-					match ssls.read(&mut read_buffer) {
-                        Ok(size) => {
-                            if size == 6 {
-                                for c in read_buffer.iter() {
-                                    print!("{}", c);
-                                }
-                                println!("");
-                            }
-                        },
+                break;
+            }
+            */
+        }
+                    
+        if should_retry {
+            // try to recreate ssl stream
+
+            println!("try to recreate ssl stream");
+
+            let apns_url_production = "gateway.push.apple.com";
+            let apns_url_development = "gateway.sandbox.push.apple.com";
+            let apns_port = 2195;
+            
+            let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
+            
+            let ssl_result = get_ssl_stream(apns_url, apns_port, self.certificate, self.private_key, self.ca_certificate);
+            *borrow_ssl_stream = match ssl_result {
+                Ok(mut ssls) => {
+                    let _ = ssls.flush();
+                    match ssls.write_all(&notification_bytes) {
+                        Ok(..) => { },
                         Err(error) => {
-                            println!("ssl_stream read error {:?}", error);
+                            println!("ssl_stream write error {:?}", error); 
                         }
                     }
-                    break;
-				}
-                */
-			}
-						
-			if retry_count >= 0 {
-	            // try to recreate ssl stream
-
-                println!("try to recreate ssl stream");
-
-				let apns_url_production = "gateway.push.apple.com";
-				let apns_url_development = "gateway.sandbox.push.apple.com";
-				let apns_port = 2195;
-				
-				let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
-				
-				let ssl_result = get_ssl_stream(apns_url, apns_port, self.certificate, self.private_key, self.ca_certificate);
-				*borrow_ssl_stream = match ssl_result {
-					Ok(ssl_stream) => { Some(ssl_stream) },
-					Err(error) => {
-	                    println!("failed to get_ssl_stream error {:?}", error);
-	                    None
-					}
-				};
-			}
-			
-			retry_count = retry_count - 1;
-		}
+                    let _ = ssls.flush();
+                    Some(ssls) 
+                },
+                Err(error) => {
+                    println!("failed to get_ssl_stream error {:?}", error);
+                    None
+                }
+            };
+        }
 	}
+}
+
+fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
+    let payload_str = match json::encode(&payload) {
+        Ok(json_str) => { json_str.to_string() }
+        Err(error) => {
+            println!("json encode error {:?}", error);
+            return vec![]; 
+        }
+    };
+
+    let payload_bytes = payload_str.into_bytes();
+    let device_token_bytes: Vec<u8> = convert_to_binary(device_token);
+
+    let mut notification_buffer: Vec<u8> = vec![];
+    let mut message_buffer: Vec<u8> = vec![];
+
+    // Device token
+    let mut device_token_length = vec![];
+    let _ = device_token_length.write_u16::<BigEndian>(device_token_bytes.len() as u16);
+
+    message_buffer.push(1u8);
+    message_buffer.push_all(device_token_length.as_slice());
+    message_buffer.push_all(device_token_bytes.as_slice());
+
+    // Payload
+    let mut payload_length = vec![];
+    let _ = payload_length.write_u16::<BigEndian>(payload_bytes.len() as u16);
+
+    message_buffer.push(2u8);
+    message_buffer.push_all(payload_length.as_slice());
+    message_buffer.push_all(payload_bytes.as_slice());
+            
+    // Notification identifier
+    let payload_id = rand::thread_rng().gen();
+    let mut payload_id_be = vec![];
+    let _ = payload_id_be.write_u32::<BigEndian>(payload_id);
+
+    let mut payload_id_length = vec![];
+    let _ = payload_id_length.write_u16::<BigEndian>(payload_id_be.len() as u16);
+
+    message_buffer.push(3u8);
+    message_buffer.push_all(payload_id_length.as_slice());
+    message_buffer.push_all(payload_id_be.as_slice());
+
+    //	Expiration date
+    let time = time::now().to_timespec().sec + 86400;	// expired after one day
+    let mut exp_date_be = vec![];
+    let _ = exp_date_be.write_u32::<BigEndian>(time as u32);
+
+    let mut exp_date_length = vec![];
+    let _ = exp_date_length.write_u16::<BigEndian>(exp_date_be.len() as u16);
+
+    message_buffer.push(4u8);
+    message_buffer.push_all(exp_date_length.as_slice());
+    message_buffer.push_all(exp_date_be.as_slice());
+
+    // Priority
+    let mut priority_length = vec![];
+    let _ = priority_length.write_u16::<BigEndian>(1u16);
+
+    message_buffer.push(5u8);
+    message_buffer.push_all(priority_length.as_slice());
+    message_buffer.push(10u8);
+
+    let mut message_buffer_length = vec![];
+    let _ = message_buffer_length.write_u32::<BigEndian>(message_buffer.len() as u32);
+    
+    let command = 2u8;
+    notification_buffer.push(command);
+    notification_buffer.push_all(message_buffer_length.as_slice());
+    notification_buffer.push_all(message_buffer.as_slice());
+    
+    return notification_buffer;
 }
 
 fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
