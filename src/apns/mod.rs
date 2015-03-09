@@ -119,20 +119,20 @@ impl<'a> Encodable for PayloadAPSAlert<'a> {
 #[allow(dead_code)]
 fn hex_to_int(hex: &str) -> u32 {
 	let mut total = 0u32;
-	let mut n = hex.to_string().len() - 1;
+	let mut n = hex.to_string().len();
 		
 	for c in hex.chars() {
+        n = n - 1;
 		match c {
 			'0'...'9' => {
-				total += 16.pow(n) * ((c as u32) - ('0' as u32));
+				total += 16.pow(n as u32) * ((c as u32) - ('0' as u32));
 			},
 			'a'...'f' => {
-				total += 16.pow(n) * ((c as u32) - ('a' as u32) + 10);
+				total += 16.pow(n as u32) * ((c as u32) - ('a' as u32) + 10);
 			},
 			_ => {
 			}
 		}
-		n = n - 1;
 	}
 	
 	return total;
@@ -238,16 +238,13 @@ impl<'a> APNS<'a> {
         let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
     
         if let Some(ssls) = borrow_ssl_stream.as_mut() {
-            let _ = ssls.flush();
-            match ssls.write_all(&notification_bytes) {
-                Ok(..) => {
-                    should_retry = false;
-                },
-                Err(error) => {
-                    println!("ssl_stream write error {:?}", error); 
+            if let Ok(..) = ssls.flush() {
+                if let Ok(..) = ssls.write_all(&notification_bytes) {
+                    if let Ok(..) = ssls.flush() {
+                        should_retry = false;
+                    }
                 }
             }
-            let _ = ssls.flush();
             //println!("flush {:?}", ssls.flush());
             /*
             else {
@@ -285,12 +282,8 @@ impl<'a> APNS<'a> {
             let ssl_result = get_ssl_stream(apns_url, apns_port, self.certificate, self.private_key, self.ca_certificate);
             *borrow_ssl_stream = match ssl_result {
                 Ok(mut ssls) => {
-                    let _ = ssls.flush();
-                    match ssls.write_all(&notification_bytes) {
-                        Ok(..) => { },
-                        Err(error) => {
-                            println!("ssl_stream write error {:?}", error); 
-                        }
+                    if let Err(error) = ssls.write_all(&notification_bytes) {
+                        println!("ssl_stream write error {:?}", error); 
                     }
                     let _ = ssls.flush();
                     Some(ssls) 
