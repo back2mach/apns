@@ -10,7 +10,6 @@ use openssl::ssl::SslStream;
 use openssl::ssl::error::SslError;
 
 use std::cell::RefCell;
-use std::num::Int;
 use std::ops::{Range, Index};
 use std::net;
 use std::net::{SocketAddr, TcpStream};
@@ -18,6 +17,7 @@ use std::io::{Cursor, Read, Write};
 use std::path::Path;
 use std::collections::HashMap;
 
+use num::pow;
 use rand::{self, Rng};
 use time;
 
@@ -125,10 +125,10 @@ fn hex_to_int(hex: &str) -> u32 {
         n = n - 1;
 		match c {
 			'0'...'9' => {
-				total += 16.pow(n as u32) * ((c as u32) - ('0' as u32));
+				total += pow(16, n) * ((c as u32) - ('0' as u32));
 			},
 			'a'...'f' => {
-				total += 16.pow(n as u32) * ((c as u32) - ('a' as u32) + 10);
+				total += pow(16, n) * ((c as u32) - ('a' as u32) + 10);
 			},
 			_ => {
 			}
@@ -144,13 +144,13 @@ fn convert_to_binary(device_token: &str) -> Vec<u8> {
 	for i in 0..8 {
 		let string = device_token.to_string();
 		let range = Range{start:i*8, end:i*8+8};
-		let sub_str = string.index(&range);
+		let sub_str = string.index(range);
 		
 		let sub_str_num = hex_to_int(sub_str);
 		let mut sub_str_bytes = vec![];
 		let _ = sub_str_bytes.write_u32::<BigEndian>(sub_str_num);
 		
-		device_token_bytes.push_all(sub_str_bytes.as_slice());
+		device_token_bytes.push_all(&sub_str_bytes);
 	}
 			
 	return device_token_bytes;
@@ -161,7 +161,7 @@ pub fn convert_to_token(binary: &[u8]) -> String {
 	let mut token = "".to_string();
 	for i in 0..8 {
 		let range = Range{start:i*4, end:i*4+4};
-		let sub_slice = binary.index(&range);
+		let sub_slice = binary.index(range);
 		
 		let mut rdr = Cursor::new(sub_slice.to_vec());
 		let num = rdr.read_u32::<BigEndian>().unwrap();
@@ -217,11 +217,11 @@ impl<'a> APNS<'a> {
             }
 			
 			let time_range = Range{start:0, end:4};
-			let time_slice = read_buffer.index(&time_range);
+			let time_slice = read_buffer.index(time_range);
 			let time = convert_to_timestamp(time_slice);
 			
 			let token_range = Range{start:6, end:38};
-			let token_slice = read_buffer.index(&token_range);
+			let token_slice = read_buffer.index(token_range);
             let token = convert_to_token(token_slice);
 			
 			tokens.push((time, token));
@@ -238,32 +238,27 @@ impl<'a> APNS<'a> {
         let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
     
         if let Some(ssls) = borrow_ssl_stream.as_mut() {
-            if let Ok(..) = ssls.flush() {
-                if let Ok(..) = ssls.write_all(&notification_bytes) {
-                    if let Ok(..) = ssls.flush() {
-                        should_retry = false;
-                    }
+            if let Ok(..) = ssls.write_all(&notification_bytes) {
+                if let Ok(..) = ssls.flush() {
+                    should_retry = false;
                 }
             }
-            //println!("flush {:?}", ssls.flush());
             /*
-            else {
-                // Response error code
-                let mut read_buffer = [0u8; 6];
-                match ssls.read(&mut read_buffer) {
-                    Ok(size) => {
-                        if size == 6 {
-                            for c in read_buffer.iter() {
-                                print!("{}", c);
-                            }
-                            println!("");
+            // Response error code
+            let mut read_buffer = [0u8; 6];
+            match ssls.read(&mut read_buffer) {
+                Ok(size) => {
+                    if size == 6 {
+                        for c in read_buffer.iter() {
+                            print!("{}", c);
                         }
-                    },
-                    Err(error) => {
-                        println!("ssl_stream read error {:?}", error);
+                        println!("");
                     }
+                    println!("ssl_stream read size {}", size);
+                },
+                Err(error) => {
+                    println!("ssl_stream read error {:?}", error);
                 }
-                break;
             }
             */
         }
@@ -317,16 +312,16 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     let _ = device_token_length.write_u16::<BigEndian>(device_token_bytes.len() as u16);
 
     message_buffer.push(1u8);
-    message_buffer.push_all(device_token_length.as_slice());
-    message_buffer.push_all(device_token_bytes.as_slice());
+    message_buffer.push_all(&device_token_length);
+    message_buffer.push_all(&device_token_bytes);
 
     // Payload
     let mut payload_length = vec![];
     let _ = payload_length.write_u16::<BigEndian>(payload_bytes.len() as u16);
 
     message_buffer.push(2u8);
-    message_buffer.push_all(payload_length.as_slice());
-    message_buffer.push_all(payload_bytes.as_slice());
+    message_buffer.push_all(&payload_length);
+    message_buffer.push_all(&payload_bytes);
             
     // Notification identifier
     let payload_id = rand::thread_rng().gen();
@@ -337,8 +332,8 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     let _ = payload_id_length.write_u16::<BigEndian>(payload_id_be.len() as u16);
 
     message_buffer.push(3u8);
-    message_buffer.push_all(payload_id_length.as_slice());
-    message_buffer.push_all(payload_id_be.as_slice());
+    message_buffer.push_all(&payload_id_length);
+    message_buffer.push_all(&payload_id_be);
 
     //	Expiration date
     let time = time::now().to_timespec().sec + 86400;	// expired after one day
@@ -349,15 +344,15 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     let _ = exp_date_length.write_u16::<BigEndian>(exp_date_be.len() as u16);
 
     message_buffer.push(4u8);
-    message_buffer.push_all(exp_date_length.as_slice());
-    message_buffer.push_all(exp_date_be.as_slice());
+    message_buffer.push_all(&exp_date_length);
+    message_buffer.push_all(&exp_date_be);
 
     // Priority
     let mut priority_length = vec![];
     let _ = priority_length.write_u16::<BigEndian>(1u16);
 
     message_buffer.push(5u8);
-    message_buffer.push_all(priority_length.as_slice());
+    message_buffer.push_all(&priority_length);
     message_buffer.push(10u8);
 
     let mut message_buffer_length = vec![];
@@ -365,8 +360,8 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     
     let command = 2u8;
     notification_buffer.push(command);
-    notification_buffer.push_all(message_buffer_length.as_slice());
-    notification_buffer.push_all(message_buffer.as_slice());
+    notification_buffer.push_all(&message_buffer_length);
+    notification_buffer.push_all(&message_buffer);
     
     return notification_buffer;
 }

@@ -1,14 +1,13 @@
-#![feature(core)]
-#![feature(io)]
-#![feature(path)]
-#![feature(net)]
 #![feature(collections)]
+#![feature(lookup_host)]
+#![feature(ip_addr)]
 
+extern crate num;
 extern crate rand;
 extern crate time;
 extern crate openssl;
 extern crate byteorder;
-extern crate "rustc-serialize" as rustc_serialize;
+extern crate rustc_serialize;
 
 pub mod apns;
 
