@@ -1,7 +1,3 @@
-#![feature(collections)]
-#![feature(lookup_host)]
-#![feature(ip_addr)]
-
 extern crate num;
 extern crate rand;
 extern crate time;

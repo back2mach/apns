@@ -15,6 +15,7 @@ use std::net;
 use std::net::{SocketAddr, TcpStream};
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
+use std::vec::Vec;
 use std::collections::HashMap;
 
 use num::pow;
@@ -140,7 +141,7 @@ fn hex_to_int(hex: &str) -> u32 {
 
 #[allow(dead_code)]
 fn convert_to_binary(device_token: &str) -> Vec<u8> {
-	let mut device_token_bytes: Vec<u8> = vec![];
+	let mut device_token_bytes: Vec<u8> = Vec::new();
 	for i in 0..8 {
 		let string = device_token.to_string();
 		let range = Range{start:i*8, end:i*8+8};
@@ -150,7 +151,9 @@ fn convert_to_binary(device_token: &str) -> Vec<u8> {
 		let mut sub_str_bytes = vec![];
 		let _ = sub_str_bytes.write_u32::<BigEndian>(sub_str_num);
 		
-		device_token_bytes.push_all(&sub_str_bytes);
+        for s in sub_str_bytes.iter() {
+            device_token_bytes.push(*s);
+        }
 	}
 			
 	return device_token_bytes;
@@ -312,17 +315,25 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     let _ = device_token_length.write_u16::<BigEndian>(device_token_bytes.len() as u16);
 
     message_buffer.push(1u8);
-    message_buffer.push_all(&device_token_length);
-    message_buffer.push_all(&device_token_bytes);
+    for s in device_token_length.iter() {
+        message_buffer.push(*s);
+    }
+    for s in device_token_bytes.iter() {
+        message_buffer.push(*s);
+    }
 
     // Payload
     let mut payload_length = vec![];
     let _ = payload_length.write_u16::<BigEndian>(payload_bytes.len() as u16);
 
     message_buffer.push(2u8);
-    message_buffer.push_all(&payload_length);
-    message_buffer.push_all(&payload_bytes);
-            
+    for s in payload_length.iter() {
+        message_buffer.push(*s);
+    }
+    for s in payload_bytes.iter() {
+        message_buffer.push(*s);
+    }
+
     // Notification identifier
     let payload_id = rand::thread_rng().gen();
     let mut payload_id_be = vec![];
@@ -332,8 +343,12 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     let _ = payload_id_length.write_u16::<BigEndian>(payload_id_be.len() as u16);
 
     message_buffer.push(3u8);
-    message_buffer.push_all(&payload_id_length);
-    message_buffer.push_all(&payload_id_be);
+    for s in payload_id_length.iter() {
+        message_buffer.push(*s);
+    }
+    for s in payload_id_be.iter() {
+        message_buffer.push(*s);
+    }
 
     //	Expiration date
     let time = time::now().to_timespec().sec + 86400;	// expired after one day
@@ -344,15 +359,21 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     let _ = exp_date_length.write_u16::<BigEndian>(exp_date_be.len() as u16);
 
     message_buffer.push(4u8);
-    message_buffer.push_all(&exp_date_length);
-    message_buffer.push_all(&exp_date_be);
+    for s in exp_date_length.iter() {
+        message_buffer.push(*s);
+    }
+    for s in exp_date_be.iter() {
+        message_buffer.push(*s);
+    }
 
     // Priority
     let mut priority_length = vec![];
     let _ = priority_length.write_u16::<BigEndian>(1u16);
 
     message_buffer.push(5u8);
-    message_buffer.push_all(&priority_length);
+    for s in priority_length.iter() {
+        message_buffer.push(*s);
+    }
     message_buffer.push(10u8);
 
     let mut message_buffer_length = vec![];
@@ -360,8 +381,12 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     
     let command = 2u8;
     notification_buffer.push(command);
-    notification_buffer.push_all(&message_buffer_length);
-    notification_buffer.push_all(&message_buffer);
+    for s in message_buffer_length.iter() {
+        notification_buffer.push(*s);
+    }
+    for s in message_buffer.iter() {
+        notification_buffer.push(*s);
+    }
     
     return notification_buffer;
 }
@@ -369,13 +394,13 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
 fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
 	let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
 	
-	if let Some(error) = context.set_CA_file(ca_file) {
+	if let Err(error) = context.set_CA_file(ca_file) {
 		println!("set_CA_file error {:?}", error);
 	}
-	if let Some(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
+	if let Err(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
 		println!("set_certificate_file error {:?}", error);
 	}
-	if let Some(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
+	if let Err(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
 		println!("set_private_key_file error {:?}", error);
 	}
 
