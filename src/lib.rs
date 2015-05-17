@@ -1,3 +1,7 @@
+#![feature(lookup_host)]
+#![feature(ip_addr)]
+#![feature(old_io)]
+
 extern crate num;
 extern crate rand;
 extern crate time;
