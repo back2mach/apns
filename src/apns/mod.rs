@@ -11,8 +11,7 @@ use openssl::ssl::error::SslError;
 
 use std::cell::RefCell;
 use std::ops::{Range, Index};
-use std::net;
-use std::net::{SocketAddr, TcpStream};
+use std::net::TcpStream;
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
 use std::vec::Vec;
@@ -197,12 +196,11 @@ impl<'a> APNS<'a> {
 	
 	#[allow(dead_code)]
     pub fn get_feedback(&self) -> Result<Vec<(u32, String)>, SslError> {    
-		let apns_feedback_production = "feedback.push.apple.com";
-		let apns_feedback_development = "feedback.sandbox.push.apple.com";
-		let feedback_port = 2196;
+		let apns_feedback_production = "feedback.push.apple.com:2196";
+		let apns_feedback_development = "feedback.sandbox.push.apple.com:2196";
         
 		let apns_feedback_url = if self.sandbox { apns_feedback_development } else { apns_feedback_production };
-		let mut stream = try!(get_ssl_stream(apns_feedback_url, feedback_port, self.certificate, self.private_key, self.ca_certificate));
+		let mut stream = try!(get_ssl_stream(apns_feedback_url, self.certificate, self.private_key, self.ca_certificate));
 
 		let mut tokens: Vec<(u32, String)> = Vec::new();
         let mut read_buffer = [0u8; 38];
@@ -271,13 +269,12 @@ impl<'a> APNS<'a> {
 
             println!("try to recreate ssl stream");
 
-            let apns_url_production = "gateway.push.apple.com";
-            let apns_url_development = "gateway.sandbox.push.apple.com";
-            let apns_port = 2195;
+            let apns_url_production = "gateway.push.apple.com:2195";
+            let apns_url_development = "gateway.sandbox.push.apple.com:2195";
             
             let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
             
-            let ssl_result = get_ssl_stream(apns_url, apns_port, self.certificate, self.private_key, self.ca_certificate);
+            let ssl_result = get_ssl_stream(apns_url, self.certificate, self.private_key, self.ca_certificate);
             *borrow_ssl_stream = match ssl_result {
                 Ok(mut ssls) => {
                     if let Err(error) = ssls.write_all(&notification_bytes) {
@@ -391,7 +388,7 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     return notification_buffer;
 }
 
-fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
+fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
 	let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
 	
 	if let Err(error) = context.set_CA_file(ca_file) {
@@ -404,16 +401,7 @@ fn get_ssl_stream(url: &str, port: u16, cert_file: &Path, private_key_file: &Pat
 		println!("set_private_key_file error {:?}", error);
 	}
 
-    let lookup_host = net::lookup_host(url).unwrap();
-    let mut ip_result: Option<SocketAddr> = None;
-    for host in lookup_host {
-        ip_result = Some(host.unwrap());
-        break;
-    }
-    let apns_ip = ip_result.unwrap();
-
-	let sock_addr = SocketAddr::new(apns_ip.ip(), port);
-    let tcp_conn = match TcpStream::connect(&sock_addr) {
+	let tcp_conn = match TcpStream::connect(url) {
 		Ok(conn) => { conn },
 		Err(error) => {
             println!("tcp_stream connect error {:?}", error);
