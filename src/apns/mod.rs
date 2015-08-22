@@ -23,186 +23,186 @@ use time;
 
 #[derive(Debug)]
 pub struct Payload<'a> {
-	pub aps: PayloadAPS<'a>,
-	pub info: Option<HashMap<&'a str, &'a str>>
+    pub aps: PayloadAPS<'a>,
+    pub info: Option<HashMap<&'a str, &'a str>>
 }
 
 #[derive(Debug)]
 pub struct PayloadAPS<'a> {
-	pub alert: PayloadAPSAlert<'a>,
-	pub badge: Option<i32>,
-	pub sound: Option<&'a str>,
-	pub content_available: Option<i32>
+    pub alert: PayloadAPSAlert<'a>,
+    pub badge: Option<i32>,
+    pub sound: Option<&'a str>,
+    pub content_available: Option<i32>
 }
 
 #[derive(Debug)]
 pub enum PayloadAPSAlert<'a> {
-	Plain(&'a str),
-	Localized(&'a str, Vec<&'a str>)
+    Plain(&'a str),
+    Localized(&'a str, Vec<&'a str>)
 }
 
 impl<'a> Encodable for Payload<'a> {
-	fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
-	    match *self {
-			Payload{ref aps, ref info} => {
-				if let Some(ref map) = *info {
-	    	        encoder.emit_struct("Payload", 1 + map.len(), |encoder| {
-						try!(encoder.emit_struct_field( "aps", 0usize, |encoder| aps.encode(encoder)));
-						let mut index = 1usize;
-						for (key, val) in map.iter() {
-							try!(encoder.emit_struct_field(key, index, |encoder| val.encode(encoder)));
-							index = index + 1;
-						}
-						Ok(())
-	    	        })
-				}
-				else {
-	    	        encoder.emit_struct("Payload", 1, |encoder| {
-						try!(encoder.emit_struct_field( "aps", 0usize, |encoder| aps.encode(encoder)));
-						Ok(())
-	    	        })
-				}
+    fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
+	match *self {
+	    Payload{ref aps, ref info} => {
+		if let Some(ref map) = *info {
+	    	    encoder.emit_struct("Payload", 1 + map.len(), |encoder| {
+			try!(encoder.emit_struct_field( "aps", 0usize, |encoder| aps.encode(encoder)));
+			let mut index = 1usize;
+			for (key, val) in map.iter() {
+			    try!(encoder.emit_struct_field(key, index, |encoder| val.encode(encoder)));
+			    index = index + 1;
 			}
+			Ok(())
+	    	    })
 		}
+		else {
+	    	    encoder.emit_struct("Payload", 1, |encoder| {
+			try!(encoder.emit_struct_field( "aps", 0usize, |encoder| aps.encode(encoder)));
+			Ok(())
+	    	    })
+		}
+	    }
 	}
+    }
 }
 
 impl<'a> Encodable for PayloadAPS<'a> {
-	fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
-	    match *self {
-			PayloadAPS{ref alert, ref badge, ref sound, ref content_available} => {
-				let mut count = 1;
-				if badge.is_some() { count = count + 1; }
-				if sound.is_some() { count = count + 1; }
-				if content_available.is_some() { count = count + 1; }
-				
-				let mut index = 0usize;
+    fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
+        match *self {
+	    PayloadAPS{ref alert, ref badge, ref sound, ref content_available} => {
+	        let mut count = 1;
+	        if badge.is_some() { count = count + 1; }
+	        if sound.is_some() { count = count + 1; }
+	        if content_available.is_some() { count = count + 1; }
+	        
+	        let mut index = 0usize;
     	        encoder.emit_struct("PayloadAPS", count, |encoder| {
-					try!(encoder.emit_struct_field( "alert", index, |encoder| alert.encode(encoder)));
-					index = index + 1;
-					if badge.is_some() { 
-						try!(encoder.emit_struct_field( "badge", index, |encoder| badge.unwrap().encode(encoder)));
-						index = index + 1;
-					}
-					if sound.is_some() { 
-						try!(encoder.emit_struct_field( "sound", index, |encoder| sound.unwrap().encode(encoder)));
-						index = index + 1;
-					}
-					if content_available.is_some() { 
-						try!(encoder.emit_struct_field( "content-available", index, |encoder| content_available.unwrap().encode(encoder)));
-						index = index + 1;
-					}
-					Ok(())
+	            try!(encoder.emit_struct_field( "alert", index, |encoder| alert.encode(encoder)));
+	            index = index + 1;
+	            if badge.is_some() { 
+		        try!(encoder.emit_struct_field( "badge", index, |encoder| badge.unwrap().encode(encoder)));
+		        index = index + 1;
+	            }
+	            if sound.is_some() { 
+		        try!(encoder.emit_struct_field( "sound", index, |encoder| sound.unwrap().encode(encoder)));
+		        index = index + 1;
+	            }
+	            if content_available.is_some() { 
+		        try!(encoder.emit_struct_field( "content-available", index, |encoder| content_available.unwrap().encode(encoder)));
+		        index = index + 1;
+	            }
+	            Ok(())
     	        })
-			}
-		}
-	}
+            }
+        }
+    }
 }
 
 impl<'a> Encodable for PayloadAPSAlert<'a> {
-	fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
-	    match *self {
-			PayloadAPSAlert::Plain(ref str) => {
+    fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
+	match *self {
+	    PayloadAPSAlert::Plain(ref str) => {
     	        encoder.emit_str(str)
-			},
-			PayloadAPSAlert::Localized(ref key, ref args) => {
+	    },
+	    PayloadAPSAlert::Localized(ref key, ref args) => {
     	        encoder.emit_struct("PayloadAPSAlert", 2, |encoder| {
-					try!(encoder.emit_struct_field( "loc-key", 0usize, |encoder| key.encode(encoder)));
-					try!(encoder.emit_struct_field( "loc-args", 1usize, |encoder| args.encode(encoder)));
-					Ok(())
-				})
-			}
-		}
+		    try!(encoder.emit_struct_field( "loc-key", 0usize, |encoder| key.encode(encoder)));
+		    try!(encoder.emit_struct_field( "loc-args", 1usize, |encoder| args.encode(encoder)));
+		    Ok(())
+		})
+	    }
 	}
+    }
 }
 
 #[allow(dead_code)]
 fn hex_to_int(hex: &str) -> u32 {
-	let mut total = 0u32;
-	let mut n = hex.to_string().len();
-		
-	for c in hex.chars() {
+    let mut total = 0u32;
+    let mut n = hex.to_string().len();
+    
+    for c in hex.chars() {
         n = n - 1;
-		match c {
-			'0'...'9' => {
-				total += pow(16, n) * ((c as u32) - ('0' as u32));
-			},
-			'a'...'f' => {
-				total += pow(16, n) * ((c as u32) - ('a' as u32) + 10);
-			},
-			_ => {
-			}
-		}
+	match c {
+	    '0'...'9' => {
+		total += pow(16, n) * ((c as u32) - ('0' as u32));
+	    },
+	    'a'...'f' => {
+		total += pow(16, n) * ((c as u32) - ('a' as u32) + 10);
+	    },
+	    _ => {
+	    }
 	}
-	
-	return total;
+    }
+    
+    return total;
 }
 
 #[allow(dead_code)]
 fn convert_to_binary(device_token: &str) -> Vec<u8> {
-	let mut device_token_bytes: Vec<u8> = Vec::new();
-	for i in 0..8 {
-		let string = device_token.to_string();
-		let range = Range{start:i*8, end:i*8+8};
-		let sub_str = string.index(range);
-		
-		let sub_str_num = hex_to_int(sub_str);
-		let mut sub_str_bytes = vec![];
-		let _ = sub_str_bytes.write_u32::<BigEndian>(sub_str_num);
-		
+    let mut device_token_bytes: Vec<u8> = Vec::new();
+    for i in 0..8 {
+	let string = device_token.to_string();
+	let range = Range{start:i*8, end:i*8+8};
+	let sub_str = string.index(range);
+	
+	let sub_str_num = hex_to_int(sub_str);
+	let mut sub_str_bytes = vec![];
+	let _ = sub_str_bytes.write_u32::<BigEndian>(sub_str_num);
+	
         for s in sub_str_bytes.iter() {
             device_token_bytes.push(*s);
         }
-	}
-			
-	return device_token_bytes;
+    }
+    
+    return device_token_bytes;
 }
 
 #[allow(dead_code)]
 pub fn convert_to_token(binary: &[u8]) -> String {
-	let mut token = "".to_string();
-	for i in 0..8 {
-		let range = Range{start:i*4, end:i*4+4};
-		let sub_slice = binary.index(range);
-		
-		let mut rdr = Cursor::new(sub_slice.to_vec());
-		let num = rdr.read_u32::<BigEndian>().unwrap();
-		
-		token = format!("{}{:x}", token, num);
-	}
-	return token;
+    let mut token = "".to_string();
+    for i in 0..8 {
+	let range = Range{start:i*4, end:i*4+4};
+	let sub_slice = binary.index(range);
+	
+	let mut rdr = Cursor::new(sub_slice.to_vec());
+	let num = rdr.read_u32::<BigEndian>().unwrap();
+	
+	token = format!("{}{:x}", token, num);
+    }
+    return token;
 }
 
 #[allow(dead_code)]
 pub fn convert_to_timestamp(binary: &[u8]) -> u32 {
-	let mut rdr = Cursor::new(binary.to_vec());
-	let num = rdr.read_u32::<BigEndian>().unwrap();
-	
-	return num;
+    let mut rdr = Cursor::new(binary.to_vec());
+    let num = rdr.read_u32::<BigEndian>().unwrap();
+    
+    return num;
 }
 
 pub struct APNS<'a> {
-	pub sandbox: bool,
-	pub certificate: &'a Path,
-	pub private_key: &'a Path,
-	pub ca_certificate: &'a Path,
-	pub ssl_stream: RefCell<Option<SslStream<TcpStream>>>
+    pub sandbox: bool,
+    pub certificate: &'a Path,
+    pub private_key: &'a Path,
+    pub ca_certificate: &'a Path,
+    pub ssl_stream: RefCell<Option<SslStream<TcpStream>>>
 }
 
 impl<'a> APNS<'a> {
-	pub fn new(sandbox: bool, cert_file: &'a Path, private_key_file: &'a Path, ca_file: &'a Path) -> APNS<'a> {
-		APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: RefCell::new(None)}
-	}
-	
-	#[allow(dead_code)]
+    pub fn new(sandbox: bool, cert_file: &'a Path, private_key_file: &'a Path, ca_file: &'a Path) -> APNS<'a> {
+	APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: RefCell::new(None)}
+    }
+    
+    #[allow(dead_code)]
     pub fn get_feedback(&self) -> Result<Vec<(u32, String)>, SslError> {    
-		let apns_feedback_production = "feedback.push.apple.com:2196";
-		let apns_feedback_development = "feedback.sandbox.push.apple.com:2196";
+	let apns_feedback_production = "feedback.push.apple.com:2196";
+	let apns_feedback_development = "feedback.sandbox.push.apple.com:2196";
         
-		let apns_feedback_url = if self.sandbox { apns_feedback_development } else { apns_feedback_production };
-		let mut stream = try!(get_ssl_stream(apns_feedback_url, self.certificate, self.private_key, self.ca_certificate));
+	let apns_feedback_url = if self.sandbox { apns_feedback_development } else { apns_feedback_production };
+	let mut stream = try!(get_ssl_stream(apns_feedback_url, self.certificate, self.private_key, self.ca_certificate));
 
-		let mut tokens: Vec<(u32, String)> = Vec::new();
+	let mut tokens: Vec<(u32, String)> = Vec::new();
         let mut read_buffer = [0u8; 38];
         loop {
             match stream.read(&mut read_buffer) {
@@ -212,32 +212,32 @@ impl<'a> APNS<'a> {
                     }
                 },
                 Err(..) => {
-/*				return Result::Err(SslError::StreamError(error));*/
+                    /*				return Result::Err(SslError::StreamError(error));*/
                     break;
                 }
             }
-			
-			let time_range = Range{start:0, end:4};
-			let time_slice = read_buffer.index(time_range);
-			let time = convert_to_timestamp(time_slice);
-			
-			let token_range = Range{start:6, end:38};
-			let token_slice = read_buffer.index(token_range);
+	    
+	    let time_range = Range{start:0, end:4};
+	    let time_slice = read_buffer.index(time_range);
+	    let time = convert_to_timestamp(time_slice);
+	    
+	    let token_range = Range{start:6, end:38};
+	    let token_slice = read_buffer.index(token_range);
             let token = convert_to_token(token_slice);
-			
-			tokens.push((time, token));
+	    
+	    tokens.push((time, token));
         }
 
         return Result::Ok(tokens);
     }
 
-	#[allow(dead_code)]
-	pub fn send_payload(&self, payload: Payload, device_token: &str) {
+    #[allow(dead_code)]
+    pub fn send_payload(&self, payload: Payload, device_token: &str) {
         let notification_bytes = get_notification_bytes(payload, device_token);
 
-		let mut should_retry = true;
+	let mut should_retry = true;
         let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
-    
+        
         if let Some(ssls) = borrow_ssl_stream.as_mut() {
             if let Ok(..) = ssls.write_all(&notification_bytes) {
                 if let Ok(..) = ssls.flush() {
@@ -248,22 +248,22 @@ impl<'a> APNS<'a> {
             // Response error code
             let mut read_buffer = [0u8; 6];
             match ssls.read(&mut read_buffer) {
-                Ok(size) => {
-                    if size == 6 {
-                        for c in read_buffer.iter() {
-                            print!("{}", c);
-                        }
-                        println!("");
-                    }
-                    println!("ssl_stream read size {}", size);
-                },
-                Err(error) => {
-                    println!("ssl_stream read error {:?}", error);
-                }
-            }
-            */
+            Ok(size) => {
+            if size == 6 {
+            for c in read_buffer.iter() {
+            print!("{}", c);
         }
-                    
+            println!("");
+        }
+            println!("ssl_stream read size {}", size);
+        },
+            Err(error) => {
+            println!("ssl_stream read error {:?}", error);
+        }
+        }
+             */
+        }
+        
         if should_retry {
             // try to recreate ssl stream
 
@@ -277,18 +277,18 @@ impl<'a> APNS<'a> {
             let ssl_result = get_ssl_stream(apns_url, self.certificate, self.private_key, self.ca_certificate);
             *borrow_ssl_stream = match ssl_result {
                 Ok(mut ssls) => {
-                    if let Err(error) = ssls.write_all(&notification_bytes) {
-                        println!("ssl_stream write error {:?}", error); 
-                    }
-                    let _ = ssls.flush();
-                    Some(ssls) 
-                },
-                Err(error) => {
-                    println!("failed to get_ssl_stream error {:?}", error);
-                    None
+                if let Err(error) = ssls.write_all(&notification_bytes) {
+                    println!("ssl_stream write error {:?}", error); 
                 }
-            };
+                let _ = ssls.flush();
+                Some(ssls) 
+            },
+            Err(error) => {
+            println!("failed to get_ssl_stream error {:?}", error);
+            None
         }
+    };
+}
 	}
 }
 
