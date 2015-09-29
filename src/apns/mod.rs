@@ -9,7 +9,6 @@ use openssl::ssl;
 use openssl::ssl::SslStream;
 use openssl::ssl::error::SslError;
 
-use std::cell::RefCell;
 use std::ops::{Range, Index};
 use std::net::TcpStream;
 use std::io::{Cursor, Read, Write};
@@ -186,12 +185,11 @@ pub struct APNS<'a> {
     pub certificate: &'a Path,
     pub private_key: &'a Path,
     pub ca_certificate: &'a Path,
-    pub ssl_stream: RefCell<Option<SslStream<TcpStream>>>
 }
 
 impl<'a> APNS<'a> {
     pub fn new(sandbox: bool, cert_file: &'a Path, private_key_file: &'a Path, ca_file: &'a Path) -> APNS<'a> {
-	APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file, ssl_stream: RefCell::new(None)}
+	APNS{sandbox: sandbox, certificate: cert_file, private_key: private_key_file, ca_certificate: ca_file}
     }
     
     #[allow(dead_code)]
@@ -235,61 +233,38 @@ impl<'a> APNS<'a> {
     pub fn send_payload(&self, payload: Payload, device_token: &str) {
         let notification_bytes = get_notification_bytes(payload, device_token);
 
-	let mut should_retry = true;
-        let mut borrow_ssl_stream = self.ssl_stream.borrow_mut();
+        let apns_url_production = "gateway.push.apple.com:2195";
+        let apns_url_development = "gateway.sandbox.push.apple.com:2195";
         
-        if let Some(ssls) = borrow_ssl_stream.as_mut() {
-            if let Ok(..) = ssls.write_all(&notification_bytes) {
-                if let Ok(..) = ssls.flush() {
-                    should_retry = false;
-                }
-            }
-            /*
-            // Response error code
-            let mut read_buffer = [0u8; 6];
-            match ssls.read(&mut read_buffer) {
-            Ok(size) => {
-            if size == 6 {
-            for c in read_buffer.iter() {
-            print!("{}", c);
-        }
-            println!("");
-        }
-            println!("ssl_stream read size {}", size);
-        },
-            Err(error) => {
-            println!("ssl_stream read error {:?}", error);
-        }
-        }
-             */
-        }
+        let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
         
-        if should_retry {
-            // try to recreate ssl stream
-
-            println!("try to recreate ssl stream");
-
-            let apns_url_production = "gateway.push.apple.com:2195";
-            let apns_url_development = "gateway.sandbox.push.apple.com:2195";
-            
-            let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
-            
-            let ssl_result = get_ssl_stream(apns_url, self.certificate, self.private_key, self.ca_certificate);
-            *borrow_ssl_stream = match ssl_result {
-                Ok(mut ssls) => {
+        let ssl_result = get_ssl_stream(apns_url, self.certificate, self.private_key, self.ca_certificate);
+        match ssl_result {
+            Ok(mut ssls) => {
                 if let Err(error) = ssls.write_all(&notification_bytes) {
                     println!("ssl_stream write error {:?}", error); 
                 }
-                let _ = ssls.flush();
-                Some(ssls) 
+                else if ssls.pending() == 6 {
+                    let mut read_buffer = [0u8; 6];
+                    match ssls.read(&mut read_buffer) {
+                        Ok(size) => {
+                            for c in read_buffer.iter() {
+                                print!("{}", c);
+                            }
+                            println!("ssl_stream read size {:?}", size);
+                        }
+                        Err(error) => {
+                            println!("ssl_stream read error {:?}", error);
+                        }
+                    }
+                }
+                // let _ = ssls.flush();
             },
             Err(error) => {
-            println!("failed to get_ssl_stream error {:?}", error);
-            None
-        }
-    };
-}
-	}
+                println!("failed to get_ssl_stream error {:?}", error);
+            }
+        };
+    }
 }
 
 fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
@@ -389,26 +364,26 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
 }
 
 fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
-	let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
-	
-	if let Err(error) = context.set_CA_file(ca_file) {
-		println!("set_CA_file error {:?}", error);
-	}
-	if let Err(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
-		println!("set_certificate_file error {:?}", error);
-	}
-	if let Err(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
-		println!("set_private_key_file error {:?}", error);
-	}
+    let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
+    
+    if let Err(error) = context.set_CA_file(ca_file) {
+	println!("set_CA_file error {:?}", error);
+    }
+    if let Err(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
+	println!("set_certificate_file error {:?}", error);
+    }
+    if let Err(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
+	println!("set_private_key_file error {:?}", error);
+    }
 
-	let tcp_conn = match TcpStream::connect(url) {
-		Ok(conn) => { conn },
-		Err(error) => {
+    let tcp_conn = match TcpStream::connect(url) {
+	Ok(conn) => { conn },
+	Err(error) => {
             println!("tcp_stream connect error {:?}", error);
-			return Result::Err(SslError::StreamError(error));
-		}
-	};
-	
-	return SslStream::new(&context, tcp_conn);
+	    return Result::Err(SslError::StreamError(error));
+	}
+    };
+    
+    return SslStream::new(&context, tcp_conn);
 }
 
