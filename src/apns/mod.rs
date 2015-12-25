@@ -11,7 +11,7 @@ use openssl::ssl::error::SslError;
 
 use std::ops::{Range, Index};
 use std::net::TcpStream;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read};
 use std::path::Path;
 use std::vec::Vec;
 use std::collections::HashMap;
@@ -366,7 +366,6 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
 
 fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
     let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
-	let ssl = try!(ssl::Ssl::new(&context));
     
     if let Err(error) = context.set_CA_file(ca_file) {
 		println!("set_CA_file error {:?}", error);
@@ -377,14 +376,16 @@ fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file:
     if let Err(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
 		println!("set_private_key_file error {:?}", error);
     }
-
+	
     let tcp_conn = match TcpStream::connect(url) {
-		Ok(conn) => { conn },
+		Ok(conn) => { 
+			conn 
+		},
 		Err(error) => {
 			println!("tcp_stream connect error {:?}", error);
 			return Result::Err(SslError::StreamError(error));
 		}
 	};
 	
-	return SslStream::connect(ssl, tcp_conn);
+	return SslStream::connect(&context, tcp_conn);
 }
