@@ -16,9 +16,9 @@ name = "apns"
 
 [dependencies]
 
-num = "*"
-openssl = "*"
-byteorder = "*"
-rustc-serialize = "*"
-time = "*"
-rand = "*"
+num = "~0.1"
+openssl = "~0.7"
+byteorder = "~0.4"
+rustc-serialize = "~0.3"
+time = "~0.1"
+rand = "~0.3"
