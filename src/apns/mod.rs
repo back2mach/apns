@@ -204,7 +204,7 @@ impl<'a> APNS<'a> {
 		let mut tokens: Vec<(u32, String)> = Vec::new();
         let mut read_buffer = [0u8; 38];
         loop {
-            match stream.read(&mut read_buffer) {
+            match stream.ssl_read(&mut read_buffer) {
                 Ok(size) => {
                     if size != 38 {
                         break;
@@ -241,16 +241,14 @@ impl<'a> APNS<'a> {
         let ssl_result = get_ssl_stream(apns_url, self.certificate, self.private_key, self.ca_certificate);
         match ssl_result {
             Ok(mut ssls) => {
-                if let Err(error) = ssls.write_all(&notification_bytes) {
+                if let Err(error) = ssls.ssl_write(&notification_bytes) {
                     println!("ssl_stream write error {:?}", error); 
                 }
 				
-				let _ = ssls.flush();
-				
 				// Read possible error code response
-				if ssls.pending() == 6 {
+				if ssls.ssl().pending() == 6 {
                     let mut read_buffer = [0u8; 6];
-                    match ssls.read(&mut read_buffer) {
+                    match ssls.ssl_read(&mut read_buffer) {
                         Ok(size) => {
                             for c in read_buffer.iter() {
                                 print!("{}", c);
@@ -368,6 +366,7 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
 
 fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
     let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
+	let ssl = try!(ssl::Ssl::new(&context));
     
     if let Err(error) = context.set_CA_file(ca_file) {
 		println!("set_CA_file error {:?}", error);
@@ -386,6 +385,6 @@ fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file:
 			return Result::Err(SslError::StreamError(error));
 		}
 	};
-    
-    return SslStream::new(&context, tcp_conn);
+	
+	return SslStream::connect(ssl, tcp_conn);
 }
