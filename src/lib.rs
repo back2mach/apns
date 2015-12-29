@@ -11,3 +11,4 @@ pub use apns::APNS;
 pub use apns::Payload;
 pub use apns::PayloadAPS;
 pub use apns::PayloadAPSAlert;
+pub use apns::PayloadAPSAlertDictionary;

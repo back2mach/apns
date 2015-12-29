@@ -31,13 +31,27 @@ pub struct PayloadAPS<'a> {
     pub alert: PayloadAPSAlert<'a>,
     pub badge: Option<i32>,
     pub sound: Option<&'a str>,
-    pub content_available: Option<i32>
+    pub content_available: Option<i32>,
+	pub category: Option<&'a str>
+}
+
+#[derive(Debug)]
+pub struct PayloadAPSAlertDictionary<'a> {
+    pub title: Option<&'a str>,
+    pub body: Option<&'a str>,
+    pub title_loc_key: Option<&'a str>,
+    pub title_loc_args: Option<Vec<&'a str>>,
+    pub action_loc_key: Option<&'a str>,
+    pub loc_key: Option<&'a str>,
+    pub loc_args: Option<Vec<&'a str>>,
+    pub launch_image: Option<&'a str>
 }
 
 #[derive(Debug)]
 pub enum PayloadAPSAlert<'a> {
     Plain(&'a str),
-    Localized(&'a str, Vec<&'a str>)
+    Localized(&'a str, Vec<&'a str>),
+	Dictionary(PayloadAPSAlertDictionary<'a>)
 }
 
 impl<'a> Encodable for Payload<'a> {
@@ -69,11 +83,12 @@ impl<'a> Encodable for Payload<'a> {
 impl<'a> Encodable for PayloadAPS<'a> {
     fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
         match *self {
-			PayloadAPS{ref alert, ref badge, ref sound, ref content_available} => {
+			PayloadAPS{ref alert, ref badge, ref sound, ref content_available, ref category} => {
 				let mut count = 1;
 		        if badge.is_some() { count = count + 1; }
 		        if sound.is_some() { count = count + 1; }
 		        if content_available.is_some() { count = count + 1; }
+		        if category.is_some() { count = count + 1; }
 	        
 		        let mut index = 0usize;
 				encoder.emit_struct("PayloadAPS", count, |encoder| {
@@ -89,6 +104,10 @@ impl<'a> Encodable for PayloadAPS<'a> {
 		            }
 		            if content_available.is_some() { 
 						try!(encoder.emit_struct_field( "content-available", index, |encoder| content_available.unwrap().encode(encoder)));
+						index = index + 1;
+		            }
+		            if category.is_some() { 
+						try!(encoder.emit_struct_field( "category", index, |encoder| category.unwrap().encode(encoder)));
 						index = index + 1;
 		            }
 					Ok(())
@@ -110,9 +129,68 @@ impl<'a> Encodable for PayloadAPSAlert<'a> {
 					try!(encoder.emit_struct_field( "loc-args", 1usize, |encoder| args.encode(encoder)));
 					Ok(())
 					})
+			},
+		    PayloadAPSAlert::Dictionary(ref dictionary) => {
+				try!(dictionary.encode(encoder));
+				Ok(())
 			}
 		}
 	}
+}
+
+impl<'a> Encodable for PayloadAPSAlertDictionary<'a> {
+    fn encode<S: Encoder>(&self, encoder: &mut S) -> Result<(), S::Error> {
+        match *self {
+			PayloadAPSAlertDictionary{ref title, ref body, ref title_loc_key, ref title_loc_args, ref action_loc_key, ref loc_key, ref loc_args, ref launch_image} => {
+				let mut count = 0;
+		        if title.is_some() { count = count + 1; }
+		        if body.is_some() { count = count + 1; }
+		        if title_loc_key.is_some() { count = count + 1; }
+		        if title_loc_args.is_some() { count = count + 1; }
+		        if action_loc_key.is_some() { count = count + 1; }
+		        if loc_key.is_some() { count = count + 1; }
+		        if loc_args.is_some() { count = count + 1; }
+		        if launch_image.is_some() { count = count + 1; }
+	        
+		        let mut index = 0usize;
+				encoder.emit_struct("PayloadAPSAlertDictionary", count, |encoder| {
+					if title.is_some() { 
+						try!(encoder.emit_struct_field( "title", index, |encoder| title.unwrap().encode(encoder)));
+						index = index + 1;
+		            }
+		            if body.is_some() { 
+						try!(encoder.emit_struct_field( "body", index, |encoder| body.unwrap().encode(encoder)));
+						index = index + 1;
+		            }
+		            if title_loc_key.is_some() { 
+						try!(encoder.emit_struct_field( "title-loc-key", index, |encoder| title_loc_key.unwrap().encode(encoder)));
+						index = index + 1;
+		            }
+					if let Some(ref title_loc_args_) = *title_loc_args {
+						try!(encoder.emit_struct_field( "title-loc-args", index, |encoder| title_loc_args_.encode(encoder)));
+						index = index + 1;
+					}
+		            if action_loc_key.is_some() { 
+						try!(encoder.emit_struct_field( "action-loc-key", index, |encoder| action_loc_key.unwrap().encode(encoder)));
+						index = index + 1;
+		            }
+		            if loc_key.is_some() { 
+						try!(encoder.emit_struct_field( "loc-key", index, |encoder| loc_key.unwrap().encode(encoder)));
+						index = index + 1;
+		            }
+					if let Some(ref loc_args_) = *loc_args {
+						try!(encoder.emit_struct_field( "title-loc-args", index, |encoder| loc_args_.encode(encoder)));
+						index = index + 1;
+					}
+		            if launch_image.is_some() { 
+						try!(encoder.emit_struct_field( "launch-image", index, |encoder| launch_image.unwrap().encode(encoder)));
+						index = index + 1;
+		            }
+					Ok(())
+				})
+			}
+		}
+    }
 }
 
 #[allow(dead_code)]
