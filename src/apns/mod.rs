@@ -311,8 +311,8 @@ impl<'a> APNS<'a> {
     pub fn send_payload(&self, payload: Payload, device_token: &str) {
         let notification_bytes = get_notification_bytes(payload, device_token);
 
-        let apns_url_production = "gateway.push.apple.com:2195";
-        let apns_url_development = "gateway.sandbox.push.apple.com:2195";
+        let apns_url_production = "api.push.apple.com:443";
+        let apns_url_development = "api.development.push.apple.com:443";
         
         let apns_url = if self.sandbox { apns_url_development } else { apns_url_production };
         
