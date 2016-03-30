@@ -443,7 +443,7 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
 }
 
 fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
-    let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
+    let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Tlsv1_2));
     
     if let Err(error) = context.set_CA_file(ca_file) {
 		println!("set_CA_file error {:?}", error);

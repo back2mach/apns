@@ -11,14 +11,17 @@ keywords = ["apns", "apple", "push", "notification"]
 license = "Apache-2.0"
 
 [lib]
-
 name = "apns"
 
 [dependencies]
 
 num = "~0.1"
-openssl = "~0.7"
 byteorder = "~0.4"
 rustc-serialize = "~0.3"
 time = "~0.1"
 rand = "~0.3"
+
+[dependencies.openssl]
+version = "~0.7"
+features = ["tlsv1_2"]
+default-features = true
