@@ -9,6 +9,7 @@ use openssl::ssl;
 use openssl::ssl::SslStream;
 use openssl::ssl::error::SslError;
 
+use std::str;
 use std::ops::{Range, Index};
 use std::net::TcpStream;
 use std::io::{Cursor, Read};
@@ -319,6 +320,128 @@ impl<'a> APNS<'a> {
         let ssl_result = get_ssl_stream(apns_url, self.certificate, self.private_key, self.ca_certificate);
         match ssl_result {
             Ok(mut ssls) => {
+				
+				println!("ssl_write");
+				
+				let s = (0, 0x4, 0, 0);
+				let settings = [
+				(((0 >> 16) & 0x000000FF) as u8), 
+				(((0 >>  8) & 0x000000FF) as u8), 
+				(((0      ) & 0x000000FF) as u8),
+				0x4,
+				0,
+				(((0 >> 24) & 0x000000FF) as u8),
+				(((0 >> 16) & 0x000000FF) as u8),
+				(((0 >>  8) & 0x000000FF) as u8),
+				(((0      ) & 0x000000FF) as u8)];
+				
+				let headers = [
+				(((0 >> 16) & 0x000000FF) as u8), 
+				(((0 >>  8) & 0x000000FF) as u8), 
+				(((0      ) & 0x000000FF) as u8),
+				0x1,
+				0x1 | 0x4,
+				(((0 >> 24) & 0x000000FF) as u8),
+				(((0 >> 16) & 0x000000FF) as u8),
+				(((0 >>  8) & 0x000000FF) as u8),
+				(((0      ) & 0x000000FF) as u8)];
+				
+				let preface = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+				// let headers = "HEADERS\r\n";
+				// let minus_end_stream = "  - END_STREAM\r\n";
+				// let end_headers = "  + END_HEADERS\r\n";
+				let method = "  :method = POST\r\n";
+				let scheme = "  :scheme = https\r\n";
+				let path = "  :path = /3/device/de2e84b175012cff69f34c8b7554a2678f9453b2c63a8d5a802847e918a9225e\r\n";
+				let host = "  host = api.development.push.apple.com\r\n";
+				let apns_id = "  apns-id = eabeae54-14a8-11e5-b60b-1697f925ec7b\r\n";
+				let apns_expiration = "  apns-expiration = 0\r\n";
+				let apns_priority = "  apns-priority = 10\r\n";
+				let data = "DATA\r\n";
+				let plus_end_stream = "  + END_STREAM\r\n";
+				let aps = "    { \"aps\" : { \"alert\" : \"Hello\" } }\r\n";
+				
+	            let _ = ssls.ssl_write(preface.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(&settings).unwrap();
+	            let _ = ssls.ssl_write(&headers).unwrap();
+	            // let _ = ssls.ssl_write(minus_end_stream.as_bytes()).unwrap();
+	            // let _ = ssls.ssl_write(end_headers.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(method.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(scheme.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(path.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(host.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(apns_id.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(apns_expiration.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(apns_priority.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(plus_end_stream.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(data.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write(aps.as_bytes()).unwrap();
+	            let _ = ssls.ssl_write("\r\n".as_bytes()).unwrap();
+				
+				
+	            let mut vec_buffer: Vec<u8> = vec![];
+				while true {
+                    let mut read_buffer = [0u8; 1];
+                    match ssls.ssl_read(&mut read_buffer) {
+                        Ok(size) => {
+							if size > 0 {
+			                    let mut buffer = read_buffer[0];
+		                        vec_buffer.push(buffer);
+	                            // println!("ssl_stream read size {:?}\n", size);
+								
+		                        let current_buffer = vec_buffer.clone();
+		                        if current_buffer.len() >= 4 {
+		                            let buffer_length = current_buffer.len();
+		                            let range = Range{start: buffer_length - 4, end: buffer_length};
+		                            let separator_slice = current_buffer.index(range);
+
+		                            if let Ok(end_str) = str::from_utf8(&separator_slice) {
+										
+                                        print!("{}", end_str);
+	                                    vec_buffer.clear();
+		                            }
+		                        }
+							}
+							else {
+								break;		                        
+							}
+                        }
+                        Err(error) => {
+                            println!("ssl_stream read error {:?}", error);
+                        }
+                    }
+				}
+				
+				// println!("break");
+				
+				println!("vec_buffer_len {}", vec_buffer.len());
+				
+                let current_buffer = vec_buffer.clone();
+                let buffer_length = current_buffer.len();
+                let range = Range{start: 0, end: buffer_length};
+                let separator_slice = current_buffer.index(range);
+				
+				match str::from_utf8(&current_buffer) {
+					Ok(end_str) => {
+	                    println!("Response \n{}", end_str);
+					
+	                    if end_str == "\r\n\r\n" {
+	                        let range = Range{start: 0, end: buffer_length - 4};
+	                        let header_slice = current_buffer.index(range);
+	                        if let Ok(header_str) = str::from_utf8(&header_slice) {
+	                            let response_header = header_str.to_string();
+	                            println!("Response Header\n{}", response_header);
+	                        }
+	                        vec_buffer.clear();
+	                    }
+					}
+	                Err(error) => {
+	                    println!("from_utf8 error {:?}", error);
+	                }
+                }
+				
+				return;
+				
                 if let Err(error) = ssls.ssl_write(&notification_bytes) {
                     println!("ssl_stream write error {:?}", error); 
                 }
