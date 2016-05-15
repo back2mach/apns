@@ -15,10 +15,10 @@ use std::io::{Cursor, Read};
 use std::path::Path;
 use std::vec::Vec;
 use std::collections::HashMap;
+use std::time;
 
 use num::pow;
 use rand::{self, Rng};
-use time;
 
 #[derive(Debug)]
 pub struct Payload<'a> {
@@ -402,7 +402,10 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     }
 
     //	Expiration date
-    let time = time::now().to_timespec().sec + 86400;	// expired after one day
+    let time = match time::SystemTime::now().duration_since(time::UNIX_EPOCH) {
+        Ok(dur) => dur,
+        Err(err) => err.duration(),
+    }.as_secs() + 86400;  // expired after one day
     let mut exp_date_be = vec![];
     let _ = exp_date_be.write_u32::<BigEndian>(time as u32);
 
