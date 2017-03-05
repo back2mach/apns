@@ -3,6 +3,7 @@ extern crate rand;
 extern crate openssl;
 extern crate byteorder;
 extern crate rustc_serialize;
+#[macro_use] extern crate quick_error;
 
 pub mod apns;
 

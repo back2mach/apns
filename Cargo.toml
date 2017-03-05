@@ -1,7 +1,7 @@
 [package]
 
 name = "apns"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Mach <back2mach@gmail.com>"]
 description = "Library for Apple Push Notification Service."
 homepage = "https://github.com/back2mach/apns"
@@ -17,7 +17,8 @@ name = "apns"
 [dependencies]
 
 num = "~0.1"
-openssl = "~0.7"
+openssl = "~0.9"
 byteorder = "~0.4"
 rustc-serialize = "~0.3"
 rand = "~0.3"
+quick-error = "^0.1"

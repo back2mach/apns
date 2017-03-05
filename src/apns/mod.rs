@@ -7,11 +7,10 @@ use rustc_serialize::json;
 use openssl;
 use openssl::ssl;
 use openssl::ssl::SslStream;
-use openssl::ssl::error::SslError;
 
 use std::ops::{Range, Index};
 use std::net::TcpStream;
-use std::io::{Cursor, Read};
+use std::io::{Cursor};
 use std::path::Path;
 use std::vec::Vec;
 use std::collections::HashMap;
@@ -19,6 +18,7 @@ use std::time;
 
 use num::pow;
 use rand::{self, Rng};
+
 
 #[derive(Debug)]
 pub struct Payload<'a> {
@@ -272,7 +272,7 @@ impl<'a> APNS<'a> {
     }
     
     #[allow(dead_code)]
-    pub fn get_feedback(&self) -> Result<Vec<(u32, String)>, SslError> {
+	pub fn get_feedback(&self) -> Result<Vec<(u32, String)>, Error> {
 		let apns_feedback_production = "feedback.push.apple.com:2196";
 		let apns_feedback_development = "feedback.sandbox.push.apple.com:2196";
         
@@ -445,28 +445,41 @@ fn get_notification_bytes(payload: Payload, device_token: &str) -> Vec<u8> {
     return notification_buffer;
 }
 
-fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, SslError> {
-    let mut context = try!(ssl::SslContext::new(ssl::SslMethod::Sslv23));
-    
-    if let Err(error) = context.set_CA_file(ca_file) {
-		println!("set_CA_file error {:?}", error);
-    }
-    if let Err(error) = context.set_certificate_file(cert_file, openssl::x509::X509FileType::PEM) {
-		println!("set_certificate_file error {:?}", error);
-    }
-    if let Err(error) = context.set_private_key_file(private_key_file, openssl::x509::X509FileType::PEM) {
-		println!("set_private_key_file error {:?}", error);
-    }
-	
+fn get_ssl_stream(url: &str, cert_file: &Path, private_key_file: &Path, ca_file: &Path) -> Result<SslStream<TcpStream>, Error> {
+    let mut connector_builder = try!(ssl::SslConnectorBuilder::new(ssl::SslMethod::tls()).map_err(|e|Error::SslContext(e)));
+	{
+	    let context = connector_builder.builder_mut();
+		if let Err(error) = context.set_ca_file(ca_file) {
+		    println!("set_CA_file error {:?}", error);
+			return Err(Error::SslContext(error));
+		}
+		if let Err(error) = context.set_certificate_file(cert_file, openssl::x509::X509_FILETYPE_PEM) {
+		    println!("set_certificate_file error {:?}", error);
+			return Err(Error::SslContext(error));
+		}
+		if let Err(error) = context.set_private_key_file(private_key_file, openssl::x509::X509_FILETYPE_PEM) {
+		    println!("set_private_key_file error {:?}", error);
+			return Err(Error::SslContext(error));
+		}
+	}
     let tcp_conn = match TcpStream::connect(url) {
 		Ok(conn) => { 
 			conn 
 		},
 		Err(error) => {
-			println!("tcp_stream connect error {:?}", error);
-			return Result::Err(SslError::StreamError(error));
+		    return Err(Error::TcpStream(error));
 		}
 	};
-	
-	return SslStream::connect(&context, tcp_conn);
+	let connector = connector_builder.build();
+	return connector.connect(url,tcp_conn).map_err(|e|Error::Handshake(e));
+}
+
+/* ERRORS */
+quick_error! {
+    #[derive(Debug)]
+	pub enum Error {
+	    Handshake(err: openssl::ssl::HandshakeError<TcpStream>) {from() cause(err)}
+		TcpStream(err: ::std::io::Error) { from() cause(err) }
+		SslContext(err: openssl::error::ErrorStack) { from() cause(err) }
+	}
 }
